@@ -11,8 +11,11 @@ on:
 permissions:
   contents: read
 
+# Keyed by the calling workflow as well as the ref: called from the publish
+# workflow this runs alongside the push-triggered run, and one group for both
+# would have them cancel each other.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
