@@ -9,7 +9,7 @@ import { inspectContainer } from '../src/container.js';
 import { processSlice } from '../src/process-slice.js';
 import { readSlice } from '../src/read-slice.js';
 import { writeSliceFs } from '../src/write-slice-fs.js';
-import { rewriteReferences } from '../src/rewrite.js';
+import { createRewriter, rewriteReferences } from '../src/rewrite.js';
 import type { Manifest } from '../src/types.js';
 import { buildSyntheticExecutable } from './helpers/synthetic.js';
 
@@ -118,5 +118,50 @@ describe('rewriteReferences', () => {
     const result = rewriteReferences('console.log(1)', '/out', '/out');
     assert.equal(result.rewritten, 0);
     assert.equal(result.skipped, 0);
+  });
+});
+
+describe('rewriting chunk by chunk', () => {
+  function run(source: string, chunkSize: number): { output: string; rewritten: number } {
+    const rewriter = createRewriter('/out/src', '/out');
+    const parts: Buffer[] = [];
+    for (let offset = 0; offset < source.length; offset += chunkSize) {
+      parts.push(rewriter.push(Buffer.from(source.slice(offset, offset + chunkSize), 'latin1')));
+    }
+    parts.push(rewriter.end());
+    return {
+      output: Buffer.concat(parts).toString('latin1'),
+      rewritten: rewriter.counts().rewritten,
+    };
+  }
+
+  const source = `${'x'.repeat(5000)}var a=("/$bunfs/root/asset.js");${'y'.repeat(5000)}`;
+
+  it('matches a reference however the chunks fall across it', () => {
+    // The interesting sizes are the ones that split the reference itself, and
+    // the ones that split the context the checks either side of it need.
+    for (const chunkSize of [1, 7, 64, 1024, 4096, 5017, 10_000]) {
+      const { output, rewritten } = run(source, chunkSize);
+      assert.equal(rewritten, 1, `chunk size ${chunkSize}`);
+      assert.match(output, /__dirname\+"\/\.\.\/asset\.js"/);
+      assert.doesNotMatch(output, /\$bunfs/);
+    }
+  });
+
+  it('passes every other byte through untouched', () => {
+    const { output } = run(source, 4096);
+    assert.equal(
+      output.length - source.length,
+      '(__dirname+"/../asset.js")'.length - '"/$bunfs/root/asset.js"'.length,
+    );
+    assert.ok(output.startsWith('x'.repeat(5000)));
+    assert.ok(output.endsWith('y'.repeat(5000)));
+  });
+
+  it('keeps binary content byte for byte', () => {
+    const bytes = Buffer.from([0x00, 0xff, 0xfe, 0x80, 0x7f, 0xc3, 0x28]);
+    const rewriter = createRewriter('/out', '/out');
+    const output = Buffer.concat([rewriter.push(bytes), rewriter.end()]);
+    assert.deepEqual(output, bytes);
   });
 });

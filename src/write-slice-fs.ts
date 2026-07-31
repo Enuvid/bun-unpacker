@@ -3,6 +3,7 @@ import { closeSync, mkdirSync, openSync, rmSync, writeFileSync, writeSync } from
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import type { BinaryReader } from './binary-reader.js';
 import { BYTECODE_DIRECTORY, MANIFEST_FILE_NAME } from './read-slice.js';
+import { createRewriter } from './rewrite.js';
 import type {
   ExtractedModule,
   ExtractedRegion,
@@ -15,16 +16,38 @@ import { TOOL_NAME, TOOL_VERSION } from './version.js';
 
 const COPY_CHUNK_SIZE = 4 * 1024 * 1024;
 
-/** Streams a byte range to disk and returns its sha256. */
+interface CopyResult {
+  sha256: string;
+  rewritten: number;
+  skipped: number;
+}
+
+/**
+ * Copies a byte range to disk in chunks, rewriting packed references on the
+ * way when asked, and returns the sha256 of what was written. The file is
+ * never held in memory: the rewriter keeps back a couple of kilobytes so a
+ * reference straddling a chunk boundary is still matched.
+ */
 function copyRegion(
   reader: BinaryReader,
   absoluteOffset: number,
   length: number,
   destination: string,
-): string {
+  rewrite: { fileDirectory: string; outputRoot: string } | null = null,
+): CopyResult {
   mkdirSync(dirname(destination), { recursive: true });
   const hash = createHash('sha256');
+  const rewriter = rewrite ? createRewriter(rewrite.fileDirectory, rewrite.outputRoot) : null;
   const output = openSync(destination, 'w');
+
+  const emit = (bytes: Buffer): void => {
+    let written = 0;
+    while (written < bytes.length) {
+      written += writeSync(output, bytes, written, bytes.length - written);
+    }
+    hash.update(bytes);
+  };
+
   try {
     let copied = 0;
     while (copied < length) {
@@ -35,12 +58,11 @@ function copyRegion(
       if (chunk.length === 0) {
         throw new Error(`unexpected end of file while reading ${destination}`);
       }
-      let written = 0;
-      while (written < chunk.length) {
-        written += writeSync(output, chunk, written, chunk.length - written);
-      }
-      hash.update(chunk);
+      emit(rewriter ? rewriter.push(chunk) : chunk);
       copied += chunk.length;
+    }
+    if (rewriter) {
+      emit(rewriter.end());
     }
   } catch (error) {
     closeSync(output);
@@ -49,7 +71,8 @@ function copyRegion(
     throw error;
   }
   closeSync(output);
-  return hash.digest('hex');
+
+  return { sha256: hash.digest('hex'), ...(rewriter?.counts() ?? { rewritten: 0, skipped: 0 }) };
 }
 
 /**
@@ -58,6 +81,17 @@ function copyRegion(
  */
 function manifestPath(outputRoot: string, destination: string): string {
   return relative(outputRoot, destination).split(sep).join('/');
+}
+
+/** The packed bytes still have to be hashed when what was written differs. */
+function hashRegion(reader: BinaryReader, absoluteOffset: number, length: number): string {
+  const hash = createHash('sha256');
+  for (let copied = 0; copied < length;) {
+    const chunk = reader.read(absoluteOffset + copied, Math.min(COPY_CHUNK_SIZE, length - copied));
+    hash.update(chunk);
+    copied += chunk.length;
+  }
+  return hash.digest('hex');
 }
 
 function toExtractedRegion(region: Region, blobStart: number): ExtractedRegion {
@@ -99,18 +133,20 @@ export function writeSliceFs(payload: Payload, options: WriteOptions): Manifest 
       rawEntryHex: module.rawEntryHex,
     };
 
-    record.sha256Packed = copyRegion(reader, module.offsetInFile, module.size, destination);
-    record.sha256 = record.sha256Packed;
-    record.writtenTo = manifestPath(outputRoot, destination);
+    let copied = copyRegion(reader, module.offsetInFile, module.size, destination, module.rewrite);
 
-    // A module that went through processSlice carries patched contents; the
-    // packed bytes have already been hashed on their way to disk.
-    if (module.rewrittenReferences > 0) {
-      const patched = module.bytes();
-      writeFileSync(destination, patched);
-      record.sha256 = createHash('sha256').update(patched).digest('hex');
-      record.rewrittenReferences = module.rewrittenReferences;
+    // All or nothing: one reference that could not be placed safely would leave
+    // a file with a mix of working and broken paths. Rare enough to pay for
+    // with a second copy rather than by buffering every file to find out.
+    if (copied.skipped > 0) {
+      copied = copyRegion(reader, module.offsetInFile, module.size, destination);
     }
+
+    record.rewrittenReferences = copied.rewritten;
+    record.sha256 = copied.sha256;
+    record.sha256Packed =
+      copied.rewritten > 0 ? hashRegion(reader, module.offsetInFile, module.size) : copied.sha256;
+    record.writtenTo = manifestPath(outputRoot, destination);
 
     if (record.sourcemap) {
       writeRegion(record.sourcemap, `${destination}.map`);

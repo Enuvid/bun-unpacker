@@ -70,8 +70,11 @@ export interface PayloadModule {
   sourcemap: Region | null;
   bytecode: Region | null;
   rawEntryHex: string;
-  /** Non-zero once `processSlice` has rewritten packed references. */
-  rewrittenReferences: number;
+  /**
+   * Set by `processSlice` for a module whose references are to be rewritten.
+   * The writer applies it chunk by chunk; `bytes()` applies it on demand.
+   */
+  rewrite: { fileDirectory: string; outputRoot: string } | null;
   /** Reads the whole file into memory. */
   bytes: () => Buffer;
   /** For files too large to hold at once, such as the bytecode cache. */

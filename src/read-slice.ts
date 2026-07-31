@@ -76,7 +76,7 @@ export function readSlice(
       sourcemap: module.sourcemap,
       bytecode: module.bytecode,
       rawEntryHex: module.rawEntryHex,
-      rewrittenReferences: 0,
+      rewrite: null,
       bytes: () => read(module.contents),
       stream: (region) => open(region ?? module.contents),
     };

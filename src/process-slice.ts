@@ -1,4 +1,3 @@
-import { Readable } from 'node:stream';
 import { dirname, extname, join, resolve } from 'node:path';
 import { rewriteReferences } from './rewrite.js';
 
@@ -30,22 +29,18 @@ export function processSlice(payload: Payload, options: ProcessOptions): Payload
       return module;
     }
 
-    const destination = join(outputRoot, module.path);
-    const result = rewriteReferences(
-      module.bytes().toString('utf8'),
-      dirname(destination),
-      outputRoot,
-    );
-    if (result.rewritten === 0) {
-      return module;
-    }
-
-    const patched = Buffer.from(result.content, 'utf8');
+    const rewrite = { fileDirectory: dirname(join(outputRoot, module.path)), outputRoot };
     return {
       ...module,
-      rewrittenReferences: result.rewritten,
-      bytes: () => patched,
-      stream: (region) => (region ? module.stream(region) : Readable.from(patched)),
+      rewrite,
+      // Reading the file is the caller's choice here. The writer never takes
+      // it: it applies the same substitution chunk by chunk on the way out.
+      bytes: () =>
+        Buffer.from(
+          rewriteReferences(module.bytes().toString('latin1'), rewrite.fileDirectory, outputRoot)
+            .content,
+          'latin1',
+        ),
     };
   });
 

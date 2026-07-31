@@ -13,9 +13,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Documentation only. The library section now leads with what the three steps
-  do, shows one complete example of the pipeline rather than two fragments,
-  lists what a module actually offers, and its snippets run as written.
+- Rewriting no longer reads a module into memory. The substitution happens
+  chunk by chunk inside the copy loop, keeping back enough bytes that a
+  reference straddling a boundary is still matched, so memory is bounded by the
+  chunk rather than by the file.
+- `.mjs` and `.cjs` are rewritten as well as `.js`. Nothing else is: turning a
+  string literal into an expression is meaningless outside JavaScript.
+- `PayloadModule.rewrittenReferences` became `rewrite`, the plan rather than a
+  count, since the count is only known once the bytes have gone past.
+- The README documents every export, with signatures, and its snippets run as
+  written.
 
 
 ## [0.3.0]

@@ -138,6 +138,9 @@ sizes and strides no current release emits.
 ## Library
 
 The CLI is a thin layer over three steps, and you can stop after any of them.
+Reading parses one image of the executable and hands back its modules without
+touching the disk. Processing rewrites the packed references. Writing puts the
+files somewhere and returns a record of what it did.
 
 ```ts
 import {
@@ -164,32 +167,96 @@ for (const slice of container.slices) {
 }
 ```
 
+The loop is over slices because a universal Mach-O holds one image per
+architecture, each with a payload of its own. Ordinary binaries yield one.
 
-### Opening a binary
+Both `processSlice` and `writeSliceFs` take the output directory and it has to
+be the same one. References are rewritten relative to where each file will
+land, so two different directories give you files that cannot find each other.
 
-`BinaryReader.open(path)` gives random access over the file by descriptor
-rather than reading it into memory, which matters when the file is a quarter of
-a gigabyte and every lookup touches a handful of bytes. It is disposable, so
-`using` closes it at the end of the scope.
-
-`inspectContainer(reader)` identifies the executable format and lists the
-images inside it. Ordinary binaries hold one. A universal Mach-O holds one per
-architecture, each with its own payload, which is why the example loops rather
-than taking the first.
+Nothing is read eagerly. A module knows its byte range and fetches it when
+asked, and the writer never holds a file either: it copies in chunks and, when
+patching, substitutes as those chunks go past.
 
 
-### Reading a slice
+## Reference
 
-`readSlice(reader, container, slice)` parses one image and returns its payload.
-Nothing is written, and nothing is read eagerly: each module knows its byte
-range and fetches it when asked.
 
-A module says where it came from and where it would go. `name` is the path the
-packer stored, `/$bunfs/root/src/index.js`. `path` is where it lands relative
-to an output directory, with collisions already resolved. `size` and `kind` are
-the byte count and a readable type such as `Mach-O arm64`, the latter sniffed
-from the first bytes by `describeContents`, which is exported separately for
-running the same guess on a buffer of your own.
+### `BinaryReader.open(path: string): BinaryReader`
+
+Random access over the file by descriptor rather than reading it into memory,
+which matters when the file is a quarter of a gigabyte and every lookup touches
+a handful of bytes. Disposable, so `using` closes it at the end of the scope,
+and `close()` is idempotent for the times it cannot be.
+
+
+### `inspectContainer(reader: BinaryReader): ContainerInfo`
+
+Identifies the executable format and lists the images inside it. `format` is
+one of `ELF`, `Mach-O`, `Mach-O universal`, `PE` or `raw`, `architecture` reads
+from the header, and `slices` has one entry per image. Throws `ContainerError`
+for a universal header declaring slices that do not fit inside the file.
+
+
+### `describeContents(name: string, header: Buffer): string`
+
+The readable type of an embedded file from its first bytes, `Mach-O arm64` or
+`JSON` or `JS (bun cjs, bytecode-backed)`, falling back to the extension. Used
+for the `kind` of every module, and exported for running the same guess on a
+buffer of your own.
+
+
+### `readSlice(reader, container, slice): Payload`
+
+Parses one image and returns its payload: the layout it found, the module table
+stride, the binary metadata that goes into a manifest, and the modules. Writes
+nothing. Throws `PayloadNotFoundError` when there is no packer trailer and
+`PayloadParseError` when the structures behind one make no sense.
+
+
+### `processSlice(payload: Payload, options: ProcessOptions): Payload`
+
+Marks the JavaScript modules whose packed references are to be rewritten and
+returns a new payload; the substitution itself happens when the bytes are read.
+`{ patchPaths: false }` returns the payload untouched, which is the same as not
+calling it. `outputDir` must match the one the payload is written to.
+
+
+### `writeSliceFs(payload: Payload, options: WriteOptions): Manifest`
+
+Writes every module below `options.outputDir` and returns the manifest. Copies
+in chunks, rewriting on the way for the modules `processSlice` marked, so no
+file is ever held whole. `{ includeBytecode: true }` also dumps the JSC
+bytecode cache, which is several times the size of the source.
+
+
+### `writeManifest(manifest: Manifest, outputDir: string): string`
+
+Writes the manifest beside the files as `manifest.json` and returns the path.
+
+
+### `toRelativePath(name: string): string`
+
+The packer path of a module reduced to where it lands, traversal segments
+dropped. This is the function behind a module's `path`.
+
+
+### `unpackBinary(path, options, streams)` and `unpackTargets(paths, options, streams)`
+
+The whole pipeline with the reporting this CLI prints: one executable and every
+slice of it, or several with a directory per target and the JSON aggregation.
+`unpackTargets` returns the process exit code. Between them and the pieces
+listed under [building another CLI](#building-another-cli-on-top) a wrapper can
+add its own way of finding binaries without reimplementing the rest.
+
+
+## What a module gives you
+
+`name` is the path the packer stored, `/$bunfs/root/src/index.js`. `path` is
+where it lands relative to an output directory, with collisions already
+resolved. `size` and `kind` are the byte count and the readable type.
+`offsetInFile` and `rawEntryHex` are for looking at the binary itself: where
+the module sits in it, and the raw bytes of its module table entry.
 
 Contents come from two methods, and which one you want depends on the size.
 `bytes()` reads the whole file into a `Buffer` and hands it back, which is what
@@ -198,6 +265,15 @@ ones you would rather not hold at once: the bytecode cache of a real binary
 runs to 150 MB. It takes an optional region, so `module.stream(module.bytecode)`
 reads that cache rather than the source, and `sourcemap` and `bytecode` are
 those regions, or null when the module has none.
+
+```ts
+import { createHash } from 'node:crypto';
+
+for (const module of readSlice(reader, container, slice).modules) {
+  const digest = createHash('sha256').update(module.bytes()).digest('hex');
+  console.log(module.path, module.size, module.kind, digest);
+}
+```
 
 A stream is not always what you want in the end. `node:stream/consumers` turns
 one back into a value once it has been read:
@@ -213,62 +289,24 @@ Doing that on the module itself is the same as calling `bytes()`, only slower,
 so reach for it when the region is something other than the file, or when the
 stream has been through a transform on the way.
 
-```ts
-import { createHash } from 'node:crypto';
 
-for (const module of readSlice(reader, container, slice).modules) {
-  const digest = createHash('sha256').update(module.bytes()).digest('hex');
-  console.log(module.path, module.size, module.kind, digest);
-}
-```
+## Building another CLI on top
 
-`offsetInFile` and `rawEntryHex` are there for looking at the binary itself:
-where the module sits in it, and the raw bytes of its module table entry.
-`toRelativePath(name)` is the function behind `path`, exported for anyone
-reducing a packer path on their own.
+`parseArguments` handles the shared flags, already validated. `requireOutputDir`,
+`requireBoolean` and `requireAtMostOneBinary` are those validations on their
+own, for a wrapper parsing its own flags the same way, and `asUsageError` turns
+a parser complaint into a `UsageError`, which the CLI reports as exit code 2.
 
+`reportSlice` prints the human readable table, `formatBytes` and `renderTable`
+are what it is made of, and `consoleStreams` and `describeError` cover the
+printing itself. `EXIT_OK`, `EXIT_FAILURE` and `EXIT_USAGE` are 0, 1 and 2.
+`DEFAULT_OUTPUT_DIR`, `MANIFEST_FILE_NAME`, `BYTECODE_DIRECTORY` and
+`TOOL_VERSION` are the names this CLI uses.
 
-### Patching and writing
-
-`processSlice(payload, { outputDir, patchPaths })` rewrites the packed
-references so the extracted files can find each other, and returns a payload
-carrying the patched contents. With `patchPaths: false` it returns the payload
-untouched, which is the same as not calling it.
-
-`writeSliceFs(payload, { outputDir, includeBytecode })` writes the files and
-returns the manifest describing what it wrote. `writeManifest(manifest, dir)`
-puts that manifest beside them as `manifest.json`.
-
-Both steps take the output directory and it has to be the same one. References
-are rewritten relative to where each file will land, so two different
-directories give you files that cannot find each other.
-
-
-### When something is wrong
-
-`PayloadNotFoundError` means no packer trailer, so the file was not built with
-`bun build --compile`. `PayloadParseError` means there is a trailer but the
-structures behind it make no sense, and it carries the candidate sizes and
-strides that were tried. `ContainerError` means a universal header declaring
-slices that do not fit inside the file.
-
-
-### Building another CLI on top
-
-`unpackBinary(path, options, streams)` runs the pipeline over one executable,
-every slice of it, printing as it goes. `unpackTargets(paths, options, streams)`
-does the same for several, with a directory per target and the JSON
-aggregation, and returns the process exit code.
-
-The pieces they are built from are exported too, so a wrapper that adds its own
-way of finding binaries does not reimplement the rest or drift from it:
-`parseArguments` for the shared flags, `requireOutputDir`, `requireBoolean` and
-`requireAtMostOneBinary` for validating its own the same way, `asUsageError`
-and `UsageError` for turning a parser complaint into exit code 2, `reportSlice`
-with `formatBytes` and `renderTable` for identical output, `consoleStreams` and
-`describeError` for the printing, and `EXIT_OK`, `EXIT_FAILURE` and
-`EXIT_USAGE` for the codes. `DEFAULT_OUTPUT_DIR`, `MANIFEST_FILE_NAME`,
-`BYTECODE_DIRECTORY` and `TOOL_VERSION` are the names this CLI uses.
+Types come with all of it: `Payload`, `PayloadModule`, `ProcessOptions`,
+`WriteOptions`, `Manifest`, `ManifestBinary`, `ExtractedModule`,
+`ExtractedRegion`, `ContainerInfo`, `ImageSlice`, `ExecutableFormat`,
+`PayloadLayout`, `Region`, `Streams`, `UnpackOptions` and `CliOptions`.
 
 
 ## How it works

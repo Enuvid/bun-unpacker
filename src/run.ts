@@ -110,7 +110,7 @@ function describePayload(payload: Payload): Manifest {
       offsetInFile: module.offsetInFile,
       sha256: null,
       sha256Packed: null,
-      rewrittenReferences: module.rewrittenReferences,
+      rewrittenReferences: 0,
       writtenTo: null,
       sourcemap: module.sourcemap
         ? {
