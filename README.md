@@ -191,10 +191,27 @@ the byte count and a readable type such as `Mach-O arm64`, the latter sniffed
 from the first bytes by `describeContents`, which is exported separately for
 running the same guess on a buffer of your own.
 
-Contents come from two methods. `bytes()` returns the whole file. `stream()`
-returns a `Readable` for the ones too large to hold at once, and takes an
-optional region, so `module.stream(module.bytecode)` reads the bytecode cache
-instead of the source. `sourcemap` and `bytecode` are those regions, or null.
+Contents come from two methods, and which one you want depends on the size.
+`bytes()` reads the whole file into a `Buffer` and hands it back, which is what
+you want most of the time. `stream()` returns a `Readable` instead, for the
+ones you would rather not hold at once: the bytecode cache of a real binary
+runs to 150 MB. It takes an optional region, so `module.stream(module.bytecode)`
+reads that cache rather than the source, and `sourcemap` and `bytecode` are
+those regions, or null when the module has none.
+
+A stream is not always what you want in the end. `node:stream/consumers` turns
+one back into a value once it has been read:
+
+```ts
+import { buffer, text } from 'node:stream/consumers';
+
+const source = await text(module.stream());
+const cache = await buffer(module.stream(module.bytecode));
+```
+
+Doing that on the module itself is the same as calling `bytes()`, only slower,
+so reach for it when the region is something other than the file, or when the
+stream has been through a transform on the way.
 
 ```ts
 import { createHash } from 'node:crypto';
