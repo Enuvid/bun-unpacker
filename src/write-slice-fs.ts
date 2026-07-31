@@ -152,8 +152,27 @@ export function writeFile(
   return record;
 }
 
-/** `writeFile` over every file of a payload, gathered into a manifest. */
-export function writeSliceFs(payload: Payload, options: WriteOptions): Manifest {
+/** The record of a file that was not written, for reporting without writing. */
+export function describeFile(file: PayloadFile): ExtractedFile {
+  return {
+    name: file.name,
+    path: file.path,
+    kind: file.kind,
+    size: file.size,
+    offsetInBlob: file.offsetInBlob,
+    offsetInFile: file.offsetInFile,
+    rewrittenReferences: 0,
+    sha256: null,
+    sha256Packed: null,
+    writtenTo: null,
+    sourcemap: file.sourcemap ? toExtractedRegion(file.sourcemap) : null,
+    bytecode: file.bytecode ? toExtractedRegion(file.bytecode) : null,
+    rawEntryHex: file.rawEntryHex,
+  };
+}
+
+/** Gathers records into a manifest, with the binary and payload they came from. */
+export function buildManifest(payload: Payload, files: ExtractedFile[]): Manifest {
   return {
     tool: TOOL_NAME,
     toolVersion: TOOL_VERSION,
@@ -161,9 +180,9 @@ export function writeSliceFs(payload: Payload, options: WriteOptions): Manifest 
     payload: {
       ...payload.layout,
       moduleEntrySize: payload.moduleEntrySize,
-      fileCount: payload.files.length,
+      fileCount: files.length,
     },
-    files: payload.files.map((file) => writeFile(payload.reader, file, options)),
+    files,
   };
 }
 

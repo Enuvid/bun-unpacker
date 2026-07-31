@@ -1,6 +1,6 @@
 {
   "name": "bun-unpacker",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Extract the files packed inside a Bun single-file executable: the JavaScript bundle, native addons and any other embedded asset",
   "keywords": [
     "bun",

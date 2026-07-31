@@ -145,11 +145,12 @@ files somewhere and returns a record of what it did.
 ```ts
 import {
   BinaryReader,
+  buildManifest,
   inspectContainer,
-  processSlice,
+  processFile,
   readSlice,
+  writeFile,
   writeManifest,
-  writeSliceFs,
 } from 'bun-unpacker';
 
 const outputDir = 'extracted';
@@ -158,13 +159,17 @@ using reader = BinaryReader.open('/path/to/binary');
 const container = inspectContainer(reader);
 
 for (const slice of container.slices) {
-  const payload = processSlice(readSlice(reader, container, slice), {
-    outputDir,
-    patchPaths: true,
-  });
-  const manifest = writeSliceFs(payload, { outputDir, includeBytecode: false });
-  writeManifest(manifest, outputDir);
+  const payload = readSlice(reader, container, slice);
+  const written = payload.files.map((file) =>
+    writeFile(reader, processFile(file, { outputDir, patchPaths: true }), {
+      outputDir,
+      includeBytecode: false,
+    }),
+  );
+  writeManifest(buildManifest(payload, written), outputDir);
 }
+```
+
 ```
 
 Two levels are in play, and it is worth keeping them apart. `container.slices`
@@ -250,15 +255,6 @@ substitution itself happens when the bytes are read, so nothing is loaded here.
 calling it. `outputDir` must match the one the file is written to.
 
 
-### `processSlice`
-
-```ts
-processSlice(payload: Payload, options: ProcessOptions): Payload;
-```
-
-`processFile` over every file of a payload.
-
-
 ### `writeFile`
 
 ```ts
@@ -275,13 +271,66 @@ The reader is the one the payload was read through, since the bytes still come
 from the binary rather than from memory.
 
 
-### `writeSliceFs`
+### `describeFile`
 
 ```ts
-writeSliceFs(payload: Payload, options: WriteOptions): Manifest;
+describeFile(file: PayloadFile): ExtractedFile;
 ```
 
-`writeFile` over every file of a payload, gathered into a manifest.
+The record of a file that was not written, for reporting without writing. Same
+shape as what `writeFile` returns, with the hashes and the destination null.
+
+
+### `buildManifest`
+
+```ts
+buildManifest(payload: Payload, files: ExtractedFile[]): Manifest;
+```
+
+Gathers records into a manifest, carrying the binary and payload they came
+from. Takes whatever the caller collected, so listing and writing produce the
+same shape.
+
+
+### `PayloadFile`
+
+What `readSlice` hands back, one per packed file.
+`name` is the path the packer stored, `/$bunfs/root/src/index.js`. `path` is
+where it lands relative to an output directory, with collisions already
+resolved. `size` and `kind` are the byte count and the readable type.
+`offsetInFile` and `rawEntryHex` are for looking at the binary itself: where
+the module sits in it, and the raw bytes of its module table entry.
+
+Contents come from two methods, and which one you want depends on the size.
+`bytes()` reads the whole file into a `Buffer` and hands it back, which is what
+you want most of the time. `stream()` returns a `Readable` instead, for the
+ones you would rather not hold at once: the bytecode cache of a real binary
+runs to 150 MB. It takes an optional region, so `file.stream(file.bytecode)`
+reads that cache rather than the source, and `sourcemap` and `bytecode` are
+those regions, or null when the file has none.
+
+```ts
+import { createHash } from 'node:crypto';
+
+for (const file of readSlice(reader, container, slice).files) {
+  const digest = createHash('sha256').update(file.bytes()).digest('hex');
+  console.log(file.path, file.size, file.kind, digest);
+}
+```
+
+A stream is not always what you want in the end. `node:stream/consumers` turns
+one back into a value once it has been read:
+
+```ts
+import { buffer, text } from 'node:stream/consumers';
+
+const source = await text(file.stream());
+const cache = await buffer(file.stream(file.bytecode));
+```
+
+Doing that on the file itself is the same as calling `bytes()`, only slower,
+so reach for it when the region is something other than the file, or when the
+stream has been through a transform on the way.
 
 
 ### `writeManifest`
@@ -321,46 +370,6 @@ The pieces this CLI is built from are exported as well, argument parsing with
 its validations, the reporting, the exit codes and the stream handles, so a
 wrapper can add its own way of finding binaries without reimplementing the rest
 or drifting from it.
-
-
-## What a file gives you
-
-`name` is the path the packer stored, `/$bunfs/root/src/index.js`. `path` is
-where it lands relative to an output directory, with collisions already
-resolved. `size` and `kind` are the byte count and the readable type.
-`offsetInFile` and `rawEntryHex` are for looking at the binary itself: where
-the module sits in it, and the raw bytes of its module table entry.
-
-Contents come from two methods, and which one you want depends on the size.
-`bytes()` reads the whole file into a `Buffer` and hands it back, which is what
-you want most of the time. `stream()` returns a `Readable` instead, for the
-ones you would rather not hold at once: the bytecode cache of a real binary
-runs to 150 MB. It takes an optional region, so `file.stream(file.bytecode)`
-reads that cache rather than the source, and `sourcemap` and `bytecode` are
-those regions, or null when the file has none.
-
-```ts
-import { createHash } from 'node:crypto';
-
-for (const file of readSlice(reader, container, slice).files) {
-  const digest = createHash('sha256').update(file.bytes()).digest('hex');
-  console.log(file.path, file.size, file.kind, digest);
-}
-```
-
-A stream is not always what you want in the end. `node:stream/consumers` turns
-one back into a value once it has been read:
-
-```ts
-import { buffer, text } from 'node:stream/consumers';
-
-const source = await text(file.stream());
-const cache = await buffer(file.stream(file.bytecode));
-```
-
-Doing that on the file itself is the same as calling `bytes()`, only slower,
-so reach for it when the region is something other than the file, or when the
-stream has been through a transform on the way.
 
 
 ## How it works

@@ -1,14 +1,14 @@
 import { basename, join, relative, resolve } from 'node:path';
 import { BinaryReader } from './binary-reader.js';
 import { inspectContainer } from './container.js';
-import { processSlice } from './process-slice.js';
+import { processFile } from './process-slice.js';
 import { readSlice } from './read-slice.js';
-import { writeManifest, writeSliceFs } from './write-slice-fs.js';
+import { buildManifest, describeFile, writeFile, writeManifest } from './write-slice-fs.js';
 import { formatBytes, renderTable } from './format.js';
 import type { CliOptions } from './options.js';
 import { HELP_TEXT, UsageError, parseArguments } from './options.js';
-import type { Manifest, Payload } from './types.js';
-import { TOOL_NAME, TOOL_VERSION } from './version.js';
+import type { Manifest } from './types.js';
+import { TOOL_VERSION } from './version.js';
 
 export const EXIT_OK = 0;
 export const EXIT_FAILURE = 1;
@@ -90,36 +90,7 @@ export function reportSlice(
   streams.out('');
 }
 
-export /** The manifest a payload would produce, for reporting without writing. */
-function describePayload(payload: Payload): Manifest {
-  return {
-    tool: TOOL_NAME,
-    toolVersion: TOOL_VERSION,
-    binary: payload.binary,
-    payload: {
-      ...payload.layout,
-      moduleEntrySize: payload.moduleEntrySize,
-      fileCount: payload.files.length,
-    },
-    files: payload.files.map((file) => ({
-      name: file.name,
-      path: file.path,
-      kind: file.kind,
-      size: file.size,
-      offsetInBlob: file.offsetInBlob,
-      offsetInFile: file.offsetInFile,
-      sha256: null,
-      sha256Packed: null,
-      rewrittenReferences: 0,
-      writtenTo: null,
-      sourcemap: file.sourcemap ? { ...file.sourcemap, writtenTo: null } : null,
-      bytecode: file.bytecode ? { ...file.bytecode, writtenTo: null } : null,
-      rawEntryHex: file.rawEntryHex,
-    })),
-  };
-}
-
-interface BinaryResult {
+export interface BinaryResult {
   manifests: Manifest[];
   failures: string[];
 }
@@ -146,15 +117,20 @@ export function unpackBinary(
         ? join(options.outputDir, slice.architecture ?? `slice-${slice.start}`)
         : options.outputDir;
     try {
-      const payload = processSlice(readSlice(reader, container, slice), {
-        outputDir,
-        // Listing writes nothing, so patching would only read every module
-        // into memory for a report that never mentions it.
-        patchPaths: options.patchPaths && !options.listOnly,
-      });
-      const manifest = options.listOnly
-        ? describePayload(payload)
-        : writeSliceFs(payload, { outputDir, includeBytecode: options.includeBytecode });
+      const payload = readSlice(reader, container, slice);
+      const write = { outputDir, includeBytecode: options.includeBytecode };
+      // Listing writes nothing, so patching it would rewrite references for a
+      // report that never mentions them.
+      const process = { outputDir, patchPaths: options.patchPaths && !options.listOnly };
+
+      const manifest = buildManifest(
+        payload,
+        payload.files.map((file) =>
+          options.listOnly
+            ? describeFile(file)
+            : writeFile(reader, processFile(file, process), write),
+        ),
+      );
       if (!options.listOnly) {
         writeManifest(manifest, outputDir);
       }

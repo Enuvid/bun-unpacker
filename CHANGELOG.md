@@ -8,6 +8,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.5.0]
+
+
+### Changed
+
+- `processSlice` and `writeSliceFs` are gone. One was `files.map(processFile)`
+  and the other was that loop plus assembling a manifest, so the loop goes back
+  to the caller and the assembling becomes `buildManifest`, which takes
+  whatever records were collected.
+- `describeFile` produces the record of a file that was not written, so
+  listing and writing build the same manifest through the same function.
+
+
 ## [0.4.1]
 
 
@@ -126,7 +139,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.3.0...v0.3.1

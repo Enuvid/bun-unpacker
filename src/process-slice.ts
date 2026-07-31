@@ -7,7 +7,7 @@ import { rewriteReferences } from './rewrite.js';
  * same check and rewriting it would produce a file that no longer parses.
  */
 const REWRITABLE = new Set(['.js', '.mjs', '.cjs']);
-import type { Payload, PayloadFile, ProcessOptions } from './types.js';
+import type { PayloadFile, ProcessOptions } from './types.js';
 
 /**
  * Rewrites the packer's virtual filesystem references so the extracted files
@@ -45,12 +45,4 @@ export function processFile(file: PayloadFile, options: ProcessOptions): Payload
         'latin1',
       ),
   };
-}
-
-/** `processFile` over every file of a payload. */
-export function processSlice(payload: Payload, options: ProcessOptions): Payload {
-  if (!options.patchPaths) {
-    return payload;
-  }
-  return { ...payload, files: payload.files.map((file) => processFile(file, options)) };
 }

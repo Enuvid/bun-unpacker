@@ -7,7 +7,7 @@ import { after, describe, it } from 'node:test';
 import { BinaryReader } from '../src/binary-reader.js';
 import { inspectContainer } from '../src/container.js';
 import { readSlice } from '../src/read-slice.js';
-import { writeSliceFs } from '../src/write-slice-fs.js';
+import { buildManifest, writeFile } from '../src/write-slice-fs.js';
 import {
   PAYLOAD_TRAILER,
   PayloadNotFoundError,
@@ -163,10 +163,13 @@ describe('extraction', () => {
     const container = inspectContainer(reader);
     const slice = container.slices[0];
     assert.ok(slice);
-    return writeSliceFs(readSlice(reader, container, slice), {
-      outputDir: directory,
-      includeBytecode: true,
-    });
+    const payload = readSlice(reader, container, slice);
+    return buildManifest(
+      payload,
+      payload.files.map((file) =>
+        writeFile(reader, file, { outputDir: directory, includeBytecode: true }),
+      ),
+    );
   }
 
   it('writes every module verbatim and records matching hashes', () => {

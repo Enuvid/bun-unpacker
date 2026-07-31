@@ -6,9 +6,9 @@ import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { BinaryReader } from '../src/binary-reader.js';
 import { inspectContainer } from '../src/container.js';
-import { processSlice } from '../src/process-slice.js';
+import { processFile } from '../src/process-slice.js';
 import { readSlice } from '../src/read-slice.js';
-import { writeSliceFs } from '../src/write-slice-fs.js';
+import { buildManifest, writeFile } from '../src/write-slice-fs.js';
 import { createRewriter, rewriteReferences } from '../src/rewrite.js';
 import type { Manifest } from '../src/types.js';
 import { buildSyntheticExecutable } from './helpers/synthetic.js';
@@ -39,10 +39,18 @@ function extract(patchPaths: boolean): { manifest: Manifest; outputDir: string }
   assert.ok(slice);
 
   return {
-    manifest: writeSliceFs(
-      processSlice(readSlice(reader, container, slice), { outputDir, patchPaths }),
-      { outputDir, includeBytecode: false },
-    ),
+    manifest: (() => {
+      const payload = readSlice(reader, container, slice);
+      return buildManifest(
+        payload,
+        payload.files.map((file) =>
+          writeFile(reader, processFile(file, { outputDir, patchPaths }), {
+            outputDir,
+            includeBytecode: false,
+          }),
+        ),
+      );
+    })(),
     outputDir,
   };
 }
