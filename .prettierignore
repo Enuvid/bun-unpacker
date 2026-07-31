@@ -2,3 +2,7 @@ dist/
 test-build/
 node_modules/
 package-lock.json
+
+# Prettier collapses blank lines, and the extra one before each heading
+# makes the source easier to scan.
+*.md

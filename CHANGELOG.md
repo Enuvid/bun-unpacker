@@ -4,11 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
 ## [Unreleased]
+
+
+## [0.1.1]
+
+
+### Changed
+
+- Documentation only. Names the Bun release the tested binaries were built
+  with, and drops the pointer to one particular downstream wrapper.
+
 
 ## [0.1.0]
 
 First release.
+
 
 ### Added
 
@@ -27,5 +39,6 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Enuvid/bun-unpacker/releases/tag/v0.1.0

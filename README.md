@@ -13,6 +13,7 @@ already on your machine, and it copies the contents out byte for byte. Nothing
 is executed, decompiled or deobfuscated; files come out exactly as the packer
 stored them.
 
+
 ## Quick start
 
 ```console
@@ -37,6 +38,7 @@ npx bun-unpacker ./my-app           # extract to ./out
 bunx bun-unpacker ./my-app -o dump  # explicit target
 ```
 
+
 ## Options
 
 | Flag                | Meaning                                                                                        |
@@ -47,6 +49,7 @@ bunx bun-unpacker ./my-app -o dump  # explicit target
 | `--json`            | Print the manifest as JSON on stdout.                                                          |
 | `-v`, `--version`   | Version of this tool.                                                                          |
 | `-h`, `--help`      | Usage.                                                                                         |
+
 
 ## Output
 
@@ -81,6 +84,7 @@ A universal binary gets one directory per architecture (`out/arm64/`,
 Manifest paths always use forward slashes, so a manifest written on Windows
 compares equal to one written anywhere else.
 
+
 ## Supported containers
 
 The payload is found by its trailer magic, so the executable format only
@@ -93,9 +97,17 @@ matters for reporting and for walking the slices of a universal binary.
 | Mach-O universal | macOS, one payload per slice, each extracted separately |
 | PE32+            | Windows, x86-64 and arm64                               |
 
+
 All four are covered by tests. ELF, Mach-O and PE were additionally verified
-against real binaries produced by Bun 1.4.0, on all three platforms, by
-comparing extracted bytes against the input.
+against real binaries, on all three platforms, by comparing extracted bytes
+against the input.
+
+Those binaries were produced by **Bun 1.4.0**, and all of them use the same
+payload shape: a 32-byte offsets struct with 52-byte module table entries. Both
+are probed rather than assumed, so a build from another Bun release should work
+even if it reshapes them, and the synthetic executables the tests build cover
+sizes and strides no current release emits.
+
 
 ## Library
 
@@ -117,8 +129,7 @@ for (const slice of container.slices) {
 
 `unpackBinary` and `unpackTargets` are exported as well, for tools that wrap
 this CLI with their own way of finding binaries.
-[claude-code-unpacker](https://github.com/Enuvid/claude-code-unpacker) is one
-such wrapper.
+
 
 ## How it works
 
@@ -145,6 +156,7 @@ resolves to a packer path: `/$bunfs/root/...` on Linux and macOS,
 `B:/~BUN/root/...` on Windows. That keeps the parser working across Bun
 releases that reshape those structures.
 
+
 ## Scope and licensing
 
 This tool is MIT licensed and contains no third-party code.
@@ -153,6 +165,7 @@ What it extracts is a different matter. Whatever comes out of a binary stays
 under that binary's own licence, and the tool neither bundles nor redistributes
 any of it. Unpacking a copy you already have, for research or debugging, is
 what this is for.
+
 
 ## Development
 
@@ -171,6 +184,7 @@ The test suite builds synthetic Bun executables byte for byte: payload blob,
 module table, offsets struct, trailer, and a universal wrapper around the lot.
 That covers struct sizes and table strides other than the ones current releases
 use, which no real binary would exercise.
+
 
 ## Licence
 
