@@ -1,0 +1,74 @@
+{
+  "name": "bun-unpacker",
+  "version": "0.1.0",
+  "description": "Extract the files packed inside a Bun single-file executable: the JavaScript bundle, native addons and any other embedded asset",
+  "keywords": [
+    "bun",
+    "unpacker",
+    "extract",
+    "single-file-executable",
+    "bun-build-compile",
+    "reverse-engineering",
+    "mach-o",
+    "elf",
+    "pe"
+  ],
+  "license": "MIT",
+  "author": "Alexander Ivanov",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Enuvid/bun-unpacker.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Enuvid/bun-unpacker/issues"
+  },
+  "homepage": "https://github.com/Enuvid/bun-unpacker#readme",
+  "type": "module",
+  "bin": {
+    "bun-unpacker": "dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prebuild": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc --project tsconfig.json",
+    "pretest": "node -e \"require('node:fs').rmSync('test-build',{recursive:true,force:true})\"",
+    "test": "tsc --project tsconfig.test.json && node --test \"test-build/test/**/*.test.js\"",
+    "test:smoke": "node scripts/smoke.mjs",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepublishOnly": "npm run lint && npm run build && npm test"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.1.2",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.8.0",
+    "prettier": "^3.9.6",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.65.0"
+  }
+}

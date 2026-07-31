@@ -1,0 +1,60 @@
+# Publishes to npm when a GitHub release is published, authenticating through
+# OIDC rather than a stored token. There is no NPM_TOKEN secret here on
+# purpose: a long-lived automation token is a credential that can leak, and it
+# bypasses the account's 2FA by design.
+#
+# Prerequisites, one time:
+#   1. Publish the first version by hand. npm cannot register a trusted
+#      publisher for a package that does not exist yet (npm/cli#8544).
+#   2. On npmjs.com, in the package settings, add a trusted publisher pointing
+#      at this repository and this workflow file.
+#   3. Make the repository public. Provenance is written to a public Sigstore
+#      transparency log and is rejected for private repositories.
+#
+# workflow_dispatch only ever packs, never publishes: a manual run from an
+# arbitrary branch would otherwise reach npm without the tag check below.
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # OIDC, which is both the credential and the provenance proof
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Trusted publishing needs npm 11.5.1 or later, which Node 24 ships.
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+
+      - name: Check the tag matches package.json
+        if: github.event_name == 'release'
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "tag $GITHUB_REF_NAME does not match package.json version $VERSION" >&2
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - name: Pack
+        if: github.event_name == 'workflow_dispatch'
+        run: npm pack --dry-run
+
+      # prepublishOnly runs lint, build and the tests before anything leaves the
+      # machine. --provenance is redundant under OIDC but explicit: it turns a
+      # repository that is still private into a failed publish rather than a
+      # silent one without provenance.
+      - name: Publish
+        if: github.event_name == 'release'
+        run: npm publish --provenance --access public
