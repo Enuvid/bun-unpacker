@@ -38,11 +38,11 @@ try {
   check(extraction.status === 0, `extraction exits 0 (got ${extraction.status})`);
   check(
     readFileSync(join(outputDir, 'cli.js'), 'utf8') === MODULE_CONTENTS,
-    'extracted module matches the input byte for byte',
+    'extracted file matches the input byte for byte',
   );
   check(
-    JSON.parse(readFileSync(join(outputDir, 'manifest.json'), 'utf8')).modules.length === 1,
-    'manifest lists the module',
+    JSON.parse(readFileSync(join(outputDir, 'manifest.json'), 'utf8')).files.length === 1,
+    'manifest lists the file',
   );
 
   const notABinary = join(workspace, 'plain-file');

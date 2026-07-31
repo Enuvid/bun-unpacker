@@ -7,7 +7,7 @@ import { rewriteReferences } from './rewrite.js';
  * same check and rewriting it would produce a file that no longer parses.
  */
 const REWRITABLE = new Set(['.js', '.mjs', '.cjs']);
-import type { Payload, PayloadModule, ProcessOptions } from './types.js';
+import type { Payload, PayloadFile, ProcessOptions } from './types.js';
 
 /**
  * Rewrites the packer's virtual filesystem references so the extracted files
@@ -18,31 +18,39 @@ import type { Payload, PayloadModule, ProcessOptions } from './types.js';
  * the rewritten references are relative to where each file will land, so a
  * mismatch produces files that look fine and cannot find each other.
  */
+/**
+ * Marks one file whose packed references are to be rewritten. The substitution
+ * itself happens when the bytes are read, so nothing is loaded here.
+ *
+ * `outputDir` has to be the directory the file is written to afterwards: the
+ * references are rewritten relative to where it will land.
+ */
+export function processFile(file: PayloadFile, options: ProcessOptions): PayloadFile {
+  if (!options.patchPaths || !REWRITABLE.has(extname(file.path))) {
+    return file;
+  }
+
+  const outputRoot = resolve(options.outputDir);
+  const rewrite = { fileDirectory: dirname(join(outputRoot, file.path)), outputRoot };
+
+  return {
+    ...file,
+    rewrite,
+    // Reading the file is the caller's choice here. The writer never takes it:
+    // it applies the same substitution chunk by chunk on the way out.
+    bytes: () =>
+      Buffer.from(
+        rewriteReferences(file.bytes().toString('latin1'), rewrite.fileDirectory, outputRoot)
+          .content,
+        'latin1',
+      ),
+  };
+}
+
+/** `processFile` over every file of a payload. */
 export function processSlice(payload: Payload, options: ProcessOptions): Payload {
   if (!options.patchPaths) {
     return payload;
   }
-  const outputRoot = resolve(options.outputDir);
-
-  const modules: PayloadModule[] = payload.modules.map((module) => {
-    if (!REWRITABLE.has(extname(module.path))) {
-      return module;
-    }
-
-    const rewrite = { fileDirectory: dirname(join(outputRoot, module.path)), outputRoot };
-    return {
-      ...module,
-      rewrite,
-      // Reading the file is the caller's choice here. The writer never takes
-      // it: it applies the same substitution chunk by chunk on the way out.
-      bytes: () =>
-        Buffer.from(
-          rewriteReferences(module.bytes().toString('latin1'), rewrite.fileDirectory, outputRoot)
-            .content,
-          'latin1',
-        ),
-    };
-  });
-
-  return { ...payload, modules };
+  return { ...payload, files: payload.files.map((file) => processFile(file, options)) };
 }

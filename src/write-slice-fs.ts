@@ -5,11 +5,12 @@ import type { BinaryReader } from './binary-reader.js';
 import { BYTECODE_DIRECTORY, MANIFEST_FILE_NAME } from './read-slice.js';
 import { createRewriter } from './rewrite.js';
 import type {
-  ExtractedModule,
+  ExtractedFile,
   ExtractedRegion,
+  FileRegion,
   Manifest,
   Payload,
-  Region,
+  PayloadFile,
   WriteOptions,
 } from './types.js';
 import { TOOL_NAME, TOOL_VERSION } from './version.js';
@@ -75,14 +76,6 @@ function copyRegion(
   return { sha256: hash.digest('hex'), ...(rewriter?.counts() ?? { rewritten: 0, skipped: 0 }) };
 }
 
-/**
- * Manifest paths use forward slashes on every platform, so a manifest produced
- * on Windows compares equal to one produced anywhere else.
- */
-function manifestPath(outputRoot: string, destination: string): string {
-  return relative(outputRoot, destination).split(sep).join('/');
-}
-
 /** The packed bytes still have to be hashed when what was written differs. */
 function hashRegion(reader: BinaryReader, absoluteOffset: number, length: number): string {
   const hash = createHash('sha256');
@@ -94,80 +87,83 @@ function hashRegion(reader: BinaryReader, absoluteOffset: number, length: number
   return hash.digest('hex');
 }
 
-function toExtractedRegion(region: Region, blobStart: number): ExtractedRegion {
-  return { ...region, offsetInFile: blobStart + region.offset, writtenTo: null };
+/**
+ * Manifest paths use forward slashes on every platform, so a manifest produced
+ * on Windows compares equal to one produced anywhere else.
+ */
+function manifestPath(outputRoot: string, destination: string): string {
+  return relative(outputRoot, destination).split(sep).join('/');
+}
+
+function toExtractedRegion(region: FileRegion): ExtractedRegion {
+  return { ...region, writtenTo: null };
 }
 
 /**
- * Writes every module below `options.outputDir` and returns the record of what
- * was written. Patching happens here rather than in a step of its own because
- * it rewrites references to point at the destination: separating the two would
- * mean passing the same output directory twice, and a mismatch between them
- * would produce files that look fine and cannot find each other.
+ * Writes one file below `options.outputDir` and returns the record of it. The
+ * reader is the one the payload was read through, since the bytes still come
+ * from the binary rather than from memory.
  */
-export function writeSliceFs(payload: Payload, options: WriteOptions): Manifest {
-  const { reader, layout } = payload;
+export function writeFile(
+  reader: BinaryReader,
+  file: PayloadFile,
+  options: WriteOptions,
+): ExtractedFile {
   const outputRoot = resolve(options.outputDir);
-  const extracted: ExtractedModule[] = [];
+  const destination = join(outputRoot, file.path);
 
-  const writeRegion = (region: ExtractedRegion, destination: string): void => {
-    copyRegion(reader, region.offsetInFile, region.length, destination);
-    region.writtenTo = manifestPath(outputRoot, destination);
-  };
+  let copied = copyRegion(reader, file.offsetInFile, file.size, destination, file.rewrite);
 
-  for (const module of payload.modules) {
-    const destination = join(outputRoot, module.path);
-    const record: ExtractedModule = {
-      name: module.name,
-      path: module.path,
-      kind: module.kind,
-      size: module.size,
-      offsetInBlob: module.offsetInBlob,
-      offsetInFile: module.offsetInFile,
-      sha256: null,
-      sha256Packed: null,
-      rewrittenReferences: 0,
-      writtenTo: null,
-      sourcemap: module.sourcemap ? toExtractedRegion(module.sourcemap, layout.blobStart) : null,
-      bytecode: module.bytecode ? toExtractedRegion(module.bytecode, layout.blobStart) : null,
-      rawEntryHex: module.rawEntryHex,
-    };
-
-    let copied = copyRegion(reader, module.offsetInFile, module.size, destination, module.rewrite);
-
-    // All or nothing: one reference that could not be placed safely would leave
-    // a file with a mix of working and broken paths. Rare enough to pay for
-    // with a second copy rather than by buffering every file to find out.
-    if (copied.skipped > 0) {
-      copied = copyRegion(reader, module.offsetInFile, module.size, destination);
-    }
-
-    record.rewrittenReferences = copied.rewritten;
-    record.sha256 = copied.sha256;
-    record.sha256Packed =
-      copied.rewritten > 0 ? hashRegion(reader, module.offsetInFile, module.size) : copied.sha256;
-    record.writtenTo = manifestPath(outputRoot, destination);
-
-    if (record.sourcemap) {
-      writeRegion(record.sourcemap, `${destination}.map`);
-    }
-    if (record.bytecode && options.includeBytecode) {
-      writeRegion(record.bytecode, join(outputRoot, BYTECODE_DIRECTORY, `${module.path}.jsc`));
-    }
-
-    extracted.push(record);
+  // All or nothing: one reference that could not be placed safely would leave a
+  // file with a mix of working and broken paths. Rare enough to pay for with a
+  // second copy rather than by buffering every file to find out.
+  if (copied.skipped > 0) {
+    copied = copyRegion(reader, file.offsetInFile, file.size, destination);
   }
 
+  const record: ExtractedFile = {
+    name: file.name,
+    path: file.path,
+    kind: file.kind,
+    size: file.size,
+    offsetInBlob: file.offsetInBlob,
+    offsetInFile: file.offsetInFile,
+    rewrittenReferences: copied.rewritten,
+    sha256: copied.sha256,
+    sha256Packed:
+      copied.rewritten > 0 ? hashRegion(reader, file.offsetInFile, file.size) : copied.sha256,
+    writtenTo: manifestPath(outputRoot, destination),
+    sourcemap: file.sourcemap ? toExtractedRegion(file.sourcemap) : null,
+    bytecode: file.bytecode ? toExtractedRegion(file.bytecode) : null,
+    rawEntryHex: file.rawEntryHex,
+  };
+
+  if (record.sourcemap) {
+    const sourcemapPath = `${destination}.map`;
+    copyRegion(reader, record.sourcemap.offsetInFile, record.sourcemap.length, sourcemapPath);
+    record.sourcemap.writtenTo = manifestPath(outputRoot, sourcemapPath);
+  }
+  if (record.bytecode && options.includeBytecode) {
+    const bytecodePath = join(outputRoot, BYTECODE_DIRECTORY, `${file.path}.jsc`);
+    copyRegion(reader, record.bytecode.offsetInFile, record.bytecode.length, bytecodePath);
+    record.bytecode.writtenTo = manifestPath(outputRoot, bytecodePath);
+  }
+
+  return record;
+}
+
+/** `writeFile` over every file of a payload, gathered into a manifest. */
+export function writeSliceFs(payload: Payload, options: WriteOptions): Manifest {
   return {
     tool: TOOL_NAME,
     toolVersion: TOOL_VERSION,
     binary: payload.binary,
     payload: {
-      ...layout,
+      ...payload.layout,
       moduleEntrySize: payload.moduleEntrySize,
-      moduleCount: payload.modules.length,
+      fileCount: payload.files.length,
     },
-    modules: extracted,
+    files: payload.files.map((file) => writeFile(payload.reader, file, options)),
   };
 }
 

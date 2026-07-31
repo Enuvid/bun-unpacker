@@ -165,8 +165,8 @@ describe('universal binaries', () => {
 
     const payloads = container.slices.map((slice) => readSlice(reader, container, slice));
 
-    assert.equal(payloads[0]?.modules.length, 1);
-    assert.equal(payloads[1]?.modules.length, 2);
+    assert.equal(payloads[0]?.files.length, 1);
+    assert.equal(payloads[1]?.files.length, 2);
     assert.deepEqual(payloads[1]?.binary.slice, {
       start: container.slices[1]?.start,
       size: container.slices[1]?.size,

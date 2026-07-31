@@ -8,6 +8,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.4.0]
+
+
+### Changed
+
+- The library is built around files rather than slices. `processFile` and
+  `writeFile` operate on one file, and `processSlice` and `writeSliceFs` are
+  loops over them, so a caller wanting one file out of a binary no longer has
+  to write all of them.
+- What you get is called a file rather than a module: `Payload.files`,
+  `PayloadFile`, `ExtractedFile`, and `files` with `fileCount` in the manifest.
+  The packer's own structures keep their name, `moduleEntrySize` is the stride
+  of its module table.
+- A file's `sourcemap` and `bytecode` carry `offsetInFile`, so it is
+  self-contained and does not need the payload it came from to be read.
+
+
 ## [0.3.1]
 
 
@@ -100,7 +117,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.1.1...v0.2.0

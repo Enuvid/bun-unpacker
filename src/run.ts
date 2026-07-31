@@ -54,26 +54,26 @@ export function reportSlice(
 
   streams.out(
     `${label} · payload ${formatBytes(payload.blobSize)} at 0x${payload.blobStart.toString(16)} · ` +
-      `${payload.moduleCount} modules · ${payload.moduleEntrySize}-byte entries · ` +
+      `${payload.fileCount} modules · ${payload.moduleEntrySize}-byte entries · ` +
       `trailer at 0x${payload.trailerOffset.toString(16)}`,
   );
   streams.out('');
 
-  const rows = manifest.modules.map((module) => [
-    module.path,
-    formatBytes(module.size),
-    module.kind,
-    module.bytecode ? formatBytes(module.bytecode.length) : '-',
+  const rows = manifest.files.map((file) => [
+    file.path,
+    formatBytes(file.size),
+    file.kind,
+    file.bytecode ? formatBytes(file.bytecode.length) : '-',
   ]);
   for (const line of renderTable(['path', 'size', 'kind', 'bytecode'], rows, new Set([1]))) {
     streams.out(line);
   }
 
-  const totalSize = manifest.modules.reduce((total, module) => total + module.size, 0);
+  const totalSize = manifest.files.reduce((total, file) => total + file.size, 0);
   streams.out(`\n  total extracted: ${formatBytes(totalSize)}`);
 
-  const bytecodeSize = manifest.modules.reduce(
-    (total, module) => total + (module.bytecode?.length ?? 0),
+  const bytecodeSize = manifest.files.reduce(
+    (total, file) => total + (file.bytecode?.length ?? 0),
     0,
   );
   if (bytecodeSize > 0 && !options.includeBytecode) {
@@ -99,34 +99,22 @@ function describePayload(payload: Payload): Manifest {
     payload: {
       ...payload.layout,
       moduleEntrySize: payload.moduleEntrySize,
-      moduleCount: payload.modules.length,
+      fileCount: payload.files.length,
     },
-    modules: payload.modules.map((module) => ({
-      name: module.name,
-      path: module.path,
-      kind: module.kind,
-      size: module.size,
-      offsetInBlob: module.offsetInBlob,
-      offsetInFile: module.offsetInFile,
+    files: payload.files.map((file) => ({
+      name: file.name,
+      path: file.path,
+      kind: file.kind,
+      size: file.size,
+      offsetInBlob: file.offsetInBlob,
+      offsetInFile: file.offsetInFile,
       sha256: null,
       sha256Packed: null,
       rewrittenReferences: 0,
       writtenTo: null,
-      sourcemap: module.sourcemap
-        ? {
-            ...module.sourcemap,
-            offsetInFile: payload.layout.blobStart + module.sourcemap.offset,
-            writtenTo: null,
-          }
-        : null,
-      bytecode: module.bytecode
-        ? {
-            ...module.bytecode,
-            offsetInFile: payload.layout.blobStart + module.bytecode.offset,
-            writtenTo: null,
-          }
-        : null,
-      rawEntryHex: module.rawEntryHex,
+      sourcemap: file.sourcemap ? { ...file.sourcemap, writtenTo: null } : null,
+      bytecode: file.bytecode ? { ...file.bytecode, writtenTo: null } : null,
+      rawEntryHex: file.rawEntryHex,
     })),
   };
 }

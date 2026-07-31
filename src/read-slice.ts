@@ -9,7 +9,14 @@ import {
   readPayloadLayout,
   toRelativePath,
 } from './payload.js';
-import type { ContainerInfo, ImageSlice, Payload, PayloadModule, Region } from './types.js';
+import type {
+  ContainerInfo,
+  FileRegion,
+  ImageSlice,
+  Payload,
+  PayloadFile,
+  Region,
+} from './types.js';
 
 export const MANIFEST_FILE_NAME = 'manifest.json';
 export const BYTECODE_DIRECTORY = '_bytecode';
@@ -59,7 +66,10 @@ export function readSlice(
       end: layout.blobStart + region.offset + region.length - 1,
     });
 
-  const payloadModules: PayloadModule[] = modules.map((module) => {
+  const toFileRegion = (region: Region | null): FileRegion | null =>
+    region === null ? null : { ...region, offsetInFile: layout.blobStart + region.offset };
+
+  const files: PayloadFile[] = modules.map((module) => {
     const contentsOffsetInFile = layout.blobStart + module.contents.offset;
     const probe = reader.read(
       contentsOffsetInFile,
@@ -73,8 +83,8 @@ export function readSlice(
       size: module.contents.length,
       offsetInBlob: module.contents.offset,
       offsetInFile: contentsOffsetInFile,
-      sourcemap: module.sourcemap,
-      bytecode: module.bytecode,
+      sourcemap: toFileRegion(module.sourcemap),
+      bytecode: toFileRegion(module.bytecode),
       rawEntryHex: module.rawEntryHex,
       rewrite: null,
       bytes: () => read(module.contents),
@@ -94,6 +104,6 @@ export function readSlice(
     },
     layout,
     moduleEntrySize: entrySize,
-    modules: payloadModules,
+    files,
   };
 }

@@ -57,8 +57,13 @@ export interface ModuleTable {
   modules: ModuleEntry[];
 }
 
+/** A region with its absolute position, so a file is self-contained. */
+export interface FileRegion extends Region {
+  offsetInFile: number;
+}
+
 /** One embedded file, with access to its bytes. */
-export interface PayloadModule {
+export interface PayloadFile {
   /** Path as the packer stored it, e.g. `/$bunfs/root/src/index.js`. */
   name: string;
   /** Where it lands relative to an output directory, collisions resolved. */
@@ -67,12 +72,12 @@ export interface PayloadModule {
   size: number;
   offsetInBlob: number;
   offsetInFile: number;
-  sourcemap: Region | null;
-  bytecode: Region | null;
+  sourcemap: FileRegion | null;
+  bytecode: FileRegion | null;
   rawEntryHex: string;
   /**
-   * Set by `processSlice` for a module whose references are to be rewritten.
-   * The writer applies it chunk by chunk; `bytes()` applies it on demand.
+   * Set by `processFile` when this file's references are to be rewritten. The
+   * writer applies it chunk by chunk; `bytes()` applies it on demand.
    */
   rewrite: { fileDirectory: string; outputRoot: string } | null;
   /** Reads the whole file into memory. */
@@ -87,8 +92,9 @@ export interface Payload {
   reader: BinaryReader;
   binary: ManifestBinary;
   layout: PayloadLayout;
+  /** Stride of the packer's module table, which is where these came from. */
   moduleEntrySize: number;
-  modules: PayloadModule[];
+  files: PayloadFile[];
 }
 
 export interface ProcessOptions {
@@ -109,7 +115,7 @@ export interface ExtractedRegion extends Region {
   writtenTo: string | null;
 }
 
-export interface ExtractedModule {
+export interface ExtractedFile {
   name: string;
   /** Path relative to the output directory. */
   path: string;
@@ -146,7 +152,7 @@ export interface Manifest {
   binary: ManifestBinary;
   payload: PayloadLayout & {
     moduleEntrySize: number;
-    moduleCount: number;
+    fileCount: number;
   };
-  modules: ExtractedModule[];
+  files: ExtractedFile[];
 }

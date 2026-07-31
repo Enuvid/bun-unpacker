@@ -175,7 +175,7 @@ describe('extraction', () => {
 
     assert.equal(manifest.payload.moduleEntrySize, SYNTHETIC_ENTRY_SIZE);
     for (const [index, sample] of SAMPLE_MODULES.entries()) {
-      const record = manifest.modules[index];
+      const record = manifest.files[index];
       assert.ok(record);
       assert.deepEqual(readFileSync(join(outputDir, record.path)), sample.contents);
       assert.equal(record.sha256, createHash('sha256').update(sample.contents).digest('hex'));
@@ -189,7 +189,7 @@ describe('extraction', () => {
 
   it('records paths relative to the output directory, not the process', () => {
     const manifest = extract(SAMPLE_MODULES, join(workspace, 'relative-paths'));
-    for (const record of manifest.modules) {
+    for (const record of manifest.files) {
       assert.equal(record.writtenTo, record.path);
       assert.doesNotMatch(record.writtenTo ?? '', /^\.\./);
       // Forward slashes everywhere, so a manifest written on Windows matches
@@ -205,7 +205,7 @@ describe('extraction', () => {
       outputDir,
     );
 
-    assert.equal(manifest.modules[0]?.path, 'escaped.js');
+    assert.equal(manifest.files[0]?.path, 'escaped.js');
     assert.ok(existsSync(join(outputDir, 'escaped.js')));
     assert.ok(!existsSync(join(workspace, 'escaped.js')));
   });
@@ -221,7 +221,7 @@ describe('extraction', () => {
       outputDir,
     );
 
-    const paths = manifest.modules.map((module) => module.path);
+    const paths = manifest.files.map((file) => file.path);
     assert.equal(new Set(paths).size, paths.length);
     assert.deepEqual(readFileSync(join(outputDir, paths[0] ?? '')), Buffer.from('first'));
     assert.deepEqual(readFileSync(join(outputDir, paths[1] ?? '')), Buffer.from('second'));
@@ -237,9 +237,9 @@ describe('extraction', () => {
 
     const payload = readSlice(reader, container, slice);
 
-    assert.equal(payload.modules.length, SAMPLE_MODULES.length);
+    assert.equal(payload.files.length, SAMPLE_MODULES.length);
     for (const [index, sample] of SAMPLE_MODULES.entries()) {
-      assert.deepEqual(payload.modules[index]?.bytes(), sample.contents);
+      assert.deepEqual(payload.files[index]?.bytes(), sample.contents);
     }
     assert.ok(!existsSync(outputDir));
   });
@@ -250,7 +250,7 @@ describe('extraction', () => {
     const slice = container.slices[0];
     assert.ok(slice);
 
-    const module = readSlice(reader, container, slice).modules[0];
+    const module = readSlice(reader, container, slice).files[0];
     assert.ok(module);
 
     const chunks: Buffer[] = [];

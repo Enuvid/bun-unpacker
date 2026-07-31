@@ -72,7 +72,7 @@ describe('cli', () => {
     assert.equal(readFileSync(join(outputDir, 'assets/logo.txt'), 'utf8'), 'logo');
 
     const manifest = JSON.parse(readFileSync(join(outputDir, 'manifest.json'), 'utf8')) as Manifest;
-    assert.equal(manifest.modules.length, 2);
+    assert.equal(manifest.files.length, 2);
     assert.match(result.out, /2 modules/);
   });
 
@@ -92,6 +92,6 @@ describe('cli', () => {
     const manifests = JSON.parse(result.out) as Manifest[];
     assert.ok(Array.isArray(manifests));
     assert.equal(manifests.length, 1);
-    assert.equal(manifests[0]?.modules.length, 2);
+    assert.equal(manifests[0]?.files.length, 2);
   });
 });

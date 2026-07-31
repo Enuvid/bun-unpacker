@@ -57,12 +57,12 @@ describe('rewriting packed references', () => {
       /\(__dirname \+ "\/\.\.\/assets\/logo\.txt"\)|\(__dirname\+"\/\.\.\/assets\/logo\.txt"\)/,
     );
     assert.doesNotMatch(written, /\$bunfs/);
-    assert.equal(manifest.modules[0]?.rewrittenReferences, 1);
+    assert.equal(manifest.files[0]?.rewrittenReferences, 1);
   });
 
   it('records both hashes, so the packed bytes stay verifiable', () => {
     const { manifest } = extract(true);
-    const record = manifest.modules[0];
+    const record = manifest.files[0];
     assert.ok(record);
 
     assert.equal(record.sha256Packed, createHash('sha256').update(BUNDLE_SOURCE).digest('hex'));
@@ -71,7 +71,7 @@ describe('rewriting packed references', () => {
 
   it('leaves the bytes alone with patching off, and both hashes agree', () => {
     const { manifest, outputDir } = extract(false);
-    const record = manifest.modules[0];
+    const record = manifest.files[0];
     assert.ok(record);
 
     assert.equal(readFileSync(join(outputDir, 'src/index.js'), 'utf8'), BUNDLE_SOURCE);
@@ -93,7 +93,7 @@ describe('rewriting packed references', () => {
   it('touches nothing that is not JavaScript', () => {
     const { manifest, outputDir } = extract(true);
     assert.equal(readFileSync(join(outputDir, 'assets/logo.txt'), 'utf8'), 'logo');
-    assert.equal(manifest.modules[1]?.rewrittenReferences, 0);
+    assert.equal(manifest.files[1]?.rewrittenReferences, 0);
   });
 });
 
