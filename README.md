@@ -160,12 +160,13 @@ const container = inspectContainer(reader);
 
 for (const slice of container.slices) {
   const payload = readSlice(reader, container, slice);
-  const written = payload.files.map((file) =>
-    writeFile(reader, processFile(file, { outputDir, patchPaths: true }), {
-      outputDir,
-      includeBytecode: false,
-    }),
-  );
+  const written = [];
+
+  for (const file of payload.files) {
+    const patched = processFile(file, { outputDir, patchPaths: true });
+    written.push(writeFile(reader, patched, { outputDir, includeBytecode: false }));
+  }
+
   writeManifest(buildManifest(payload, written), outputDir);
 }
 ```

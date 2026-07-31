@@ -8,6 +8,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.5.1]
+
+
+### Changed
+
+- Documentation only. The example shows the two loops it actually is, one over
+  the images and one over the files of an image, and `readSlice` says why
+  reading is per image rather than per file.
+
+
 ## [0.5.0]
 
 
@@ -139,7 +149,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.3.1...v0.4.0
