@@ -8,6 +8,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.5.2]
+
+
+### Fixed
+
+- A stray code fence in the readme swallowed the paragraphs after the example,
+  which also still described functions that 0.5.0 removed.
+
+
 ## [0.5.1]
 
 
@@ -149,7 +158,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.4.0...v0.4.1

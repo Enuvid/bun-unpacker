@@ -195,11 +195,6 @@ what was not there.
 binary points at the binary itself; extracted, it points at whatever runtime is
 running the bundle, so code that re-spawns itself does something different.
 
-The output directory can be moved as a whole, since the rewritten paths are
-relative to each file, but moving files around inside it breaks them. Passing
-`--path-patching false` avoids all of this by changing nothing, at the cost of
-an extraction that cannot run.
-
 
 ## Library
 
@@ -236,26 +231,23 @@ for (const slice of container.slices) {
 }
 ```
 
-```
-
 Two levels are in play, and it is worth keeping them apart. `container.slices`
 are the images inside the executable, one per architecture: an ordinary binary
 has a single one, a universal Mach-O has several, each carrying a payload of
 its own. `payload.files` are the packed files inside one image, which is where
 the bundle, the addons and the assets are.
 
-The loop above is over the first. Getting every file out of one image is not a
-loop at all: `writeSliceFs` takes the payload and writes all of its files in one
-call. So a Linux or Windows binary goes round once, and only a universal
-Mach-O goes round more than that.
+The outer loop is over the first, and a Linux or Windows binary goes round it
+once; only a universal Mach-O goes round more than that. Inside it the work is
+per file, so taking one file out of a binary does not mean writing all of them.
 
-Both `processSlice` and `writeSliceFs` take the output directory and it has to
-be the same one. References are rewritten relative to where each file will
-land, so two different directories give you files that cannot find each other.
+Both `processFile` and `writeFile` take the output directory and it has to be
+the same one. References are rewritten relative to where each file will land,
+so two different directories give you files that cannot find each other.
 
-Nothing is read eagerly. A module knows its byte range and fetches it when
-asked, and the writer never holds a file either: it copies in chunks and, when
-patching, substitutes as those chunks go past.
+Nothing is read eagerly. A file knows its byte range and fetches it when asked,
+and the writer never holds one either: it copies in chunks and, when patching,
+substitutes as those chunks go past.
 
 
 ## Reference
