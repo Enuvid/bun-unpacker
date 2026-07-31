@@ -12,7 +12,7 @@ import {
   inspectContainer,
   universalArchitectures,
 } from '../src/container.js';
-import { extractSlice } from '../src/extract.js';
+import { readPayload } from '../src/read-payload.js';
 import {
   buildSyntheticExecutable,
   elfHeader,
@@ -163,18 +163,11 @@ describe('universal binaries', () => {
       ['x86-64', 'arm64'],
     );
 
-    const manifests = container.slices.map((slice) =>
-      extractSlice(reader, container, slice, {
-        outputDir: join(workspace, 'unused'),
-        write: false,
-        includeBytecode: false,
-        verbatim: true,
-      }),
-    );
+    const payloads = container.slices.map((slice) => readPayload(reader, container, slice));
 
-    assert.equal(manifests[0]?.modules.length, 1);
-    assert.equal(manifests[1]?.modules.length, 2);
-    assert.deepEqual(manifests[1]?.binary.slice, {
+    assert.equal(payloads[0]?.modules.length, 1);
+    assert.equal(payloads[1]?.modules.length, 2);
+    assert.deepEqual(payloads[1]?.binary.slice, {
       start: container.slices[1]?.start,
       size: container.slices[1]?.size,
     });

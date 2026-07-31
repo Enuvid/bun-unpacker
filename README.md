@@ -120,20 +120,37 @@ sizes and strides no current release emits.
 
 ## Library
 
+Reading a payload writes nothing. Each module carries its byte range and reads
+it on demand, so hashing, diffing or piping one somewhere never has to go
+through a directory:
+
 ```ts
-import { BinaryReader, inspectContainer, extractSlice } from 'bun-unpacker';
+import { BinaryReader, inspectContainer, readPayload } from 'bun-unpacker';
 
 using reader = BinaryReader.open('/path/to/binary');
 const container = inspectContainer(reader);
 
 for (const slice of container.slices) {
-  const manifest = extractSlice(reader, container, slice, {
-    outputDir: 'extracted',
-    write: true,
-    includeBytecode: false,
-  });
-  console.log(manifest.modules.map((module) => module.path));
+  for (const module of readPayload(reader, container, slice).modules) {
+    console.log(module.path, module.size, module.kind);
+    createHash('sha256').update(module.bytes());
+    module.stream().pipe(somewhere); // for the ones too large to hold
+  }
 }
+```
+
+Writing is a separate step, and the manifest is what it returns:
+
+```ts
+import { readPayload, writeModules, writeManifest } from 'bun-unpacker';
+
+const payload = readPayload(reader, container, slice);
+const manifest = writeModules(payload, {
+  outputDir: 'extracted',
+  includeBytecode: false,
+  verbatim: false,
+});
+writeManifest(manifest, 'extracted');
 ```
 
 `unpackBinary` and `unpackTargets` are exported as well, for tools that wrap

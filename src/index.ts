@@ -1,7 +1,7 @@
 export { BinaryReader } from './binary-reader.js';
 export { ContainerError, describeContents, inspectContainer } from './container.js';
-export { extractSlice, writeManifest } from './extract.js';
-export type { ExtractOptions } from './extract.js';
+export { BYTECODE_DIRECTORY, MANIFEST_FILE_NAME, readPayload } from './read-payload.js';
+export { writeManifest, writeModules } from './write-modules.js';
 export { formatBytes, renderTable } from './format.js';
 export {
   DEFAULT_OUTPUT_DIR,
@@ -23,10 +23,13 @@ export {
   unpackBinary,
   unpackTargets,
 } from './run.js';
-export type { BinaryResult, Streams, UnpackOptions } from './run.js';
+export type { Streams, UnpackOptions } from './run.js';
 export { TOOL_VERSION } from './version.js';
 export type {
   ContainerInfo,
+  Payload,
+  PayloadModule,
+  WriteOptions,
   ExecutableFormat,
   ExtractedModule,
   ExtractedRegion,

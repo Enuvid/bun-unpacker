@@ -8,6 +8,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.3.0]
+
+
+### Changed
+
+- Reading a payload and writing it out are now separate. `readPayload` returns
+  the modules with their byte ranges, each able to hand back its own contents
+  through `bytes()` or `stream()`, and writes nothing. `writeModules` performs
+  the side effect and returns the manifest, which is where a manifest belongs.
+- `extractSlice` and `ExtractOptions` are gone, along with the `write` flag
+  that turned one function into two different operations. Not writing now
+  means not calling `writeModules`.
+- `Manifest.binary` is `ManifestBinary`, a named type rather than an inline one.
+
+
+### Added
+
+- `Payload`, `PayloadModule` and `WriteOptions` in the public types.
+
+
 ## [0.2.0]
 
 
@@ -58,7 +78,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Enuvid/bun-unpacker/releases/tag/v0.1.0

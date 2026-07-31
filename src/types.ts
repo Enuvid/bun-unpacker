@@ -1,3 +1,6 @@
+import type { Readable } from 'node:stream';
+import type { BinaryReader } from './binary-reader.js';
+
 /** A byte range inside the payload blob. */
 export interface Region {
   /** Offset relative to the start of the payload blob. */
@@ -54,6 +57,43 @@ export interface ModuleTable {
   modules: ModuleEntry[];
 }
 
+/** One embedded file, with access to its bytes. */
+export interface PayloadModule {
+  /** Path as the packer stored it, e.g. `/$bunfs/root/src/index.js`. */
+  name: string;
+  /** Where it lands relative to an output directory, collisions resolved. */
+  path: string;
+  kind: string;
+  size: number;
+  offsetInBlob: number;
+  offsetInFile: number;
+  sourcemap: Region | null;
+  bytecode: Region | null;
+  rawEntryHex: string;
+  /** Reads the whole file into memory. */
+  bytes: () => Buffer;
+  /** For files too large to hold at once, such as the bytecode cache. */
+  stream: (region?: Region | null) => Readable;
+}
+
+/** Everything one executable image holds, read but not written anywhere. */
+export interface Payload {
+  /** The payload is a view over this reader, which stays open for it. */
+  reader: BinaryReader;
+  binary: ManifestBinary;
+  layout: PayloadLayout;
+  moduleEntrySize: number;
+  modules: PayloadModule[];
+}
+
+export interface WriteOptions {
+  outputDir: string;
+  /** Dump the JSC bytecode cache alongside the sources. It is very large. */
+  includeBytecode: boolean;
+  /** Leave files exactly as packed, references to the packer's paths and all. */
+  verbatim: boolean;
+}
+
 export interface ExtractedRegion extends Region {
   offsetInFile: number;
   writtenTo: string | null;
@@ -80,18 +120,20 @@ export interface ExtractedModule {
   rawEntryHex: string;
 }
 
+export interface ManifestBinary {
+  path: string;
+  size: number;
+  modifiedAt: string;
+  container: ExecutableFormat;
+  architecture: string | null;
+  /** Set only when the binary is universal and this manifest covers one slice. */
+  slice: { start: number; size: number } | null;
+}
+
 export interface Manifest {
   tool: string;
   toolVersion: string;
-  binary: {
-    path: string;
-    size: number;
-    modifiedAt: string;
-    container: ExecutableFormat;
-    architecture: string | null;
-    /** Set only when the binary is universal and this manifest covers one slice. */
-    slice: { start: number; size: number } | null;
-  };
+  binary: ManifestBinary;
   payload: PayloadLayout & {
     moduleEntrySize: number;
     moduleCount: number;

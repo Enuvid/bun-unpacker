@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { BinaryReader } from '../src/binary-reader.js';
 import { inspectContainer } from '../src/container.js';
-import { extractSlice } from '../src/extract.js';
+import { readPayload } from '../src/read-payload.js';
+import { writeModules } from '../src/write-modules.js';
 import {
   PAYLOAD_TRAILER,
   PayloadNotFoundError,
@@ -162,9 +163,8 @@ describe('extraction', () => {
     const container = inspectContainer(reader);
     const slice = container.slices[0];
     assert.ok(slice);
-    return extractSlice(reader, container, slice, {
+    return writeModules(readPayload(reader, container, slice), {
       outputDir: directory,
-      write: true,
       includeBytecode: true,
       verbatim: true,
     });
@@ -229,23 +229,36 @@ describe('extraction', () => {
     assert.notEqual(paths[2], 'manifest.json');
   });
 
-  it('produces a manifest without touching the disk when write is off', () => {
+  it('hands back the bytes without writing anything', () => {
     const outputDir = join(workspace, 'never-created');
     using reader = open(buildSyntheticExecutable(SAMPLE_MODULES).bytes);
     const container = inspectContainer(reader);
     const slice = container.slices[0];
     assert.ok(slice);
 
-    const manifest = extractSlice(reader, container, slice, {
-      outputDir,
-      write: false,
-      includeBytecode: false,
-      verbatim: true,
-    });
+    const payload = readPayload(reader, container, slice);
 
-    assert.equal(manifest.modules.length, SAMPLE_MODULES.length);
-    assert.ok(manifest.modules.every((module) => module.sha256 === null));
+    assert.equal(payload.modules.length, SAMPLE_MODULES.length);
+    for (const [index, sample] of SAMPLE_MODULES.entries()) {
+      assert.deepEqual(payload.modules[index]?.bytes(), sample.contents);
+    }
     assert.ok(!existsSync(outputDir));
+  });
+
+  it('streams a module for callers that will not hold it in memory', async () => {
+    using reader = open(buildSyntheticExecutable(SAMPLE_MODULES).bytes);
+    const container = inspectContainer(reader);
+    const slice = container.slices[0];
+    assert.ok(slice);
+
+    const module = readPayload(reader, container, slice).modules[0];
+    assert.ok(module);
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of module.stream()) {
+      chunks.push(chunk as Buffer);
+    }
+    assert.deepEqual(Buffer.concat(chunks), SAMPLE_MODULES[0]?.contents);
   });
 });
 

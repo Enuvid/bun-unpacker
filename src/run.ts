@@ -1,12 +1,13 @@
 import { basename, join, relative, resolve } from 'node:path';
 import { BinaryReader } from './binary-reader.js';
 import { inspectContainer } from './container.js';
-import { extractSlice, writeManifest } from './extract.js';
+import { readPayload } from './read-payload.js';
+import { writeManifest, writeModules } from './write-modules.js';
 import { formatBytes, renderTable } from './format.js';
 import type { CliOptions } from './options.js';
 import { HELP_TEXT, UsageError, parseArguments } from './options.js';
-import type { Manifest } from './types.js';
-import { TOOL_VERSION } from './version.js';
+import type { Manifest, Payload } from './types.js';
+import { TOOL_NAME, TOOL_VERSION } from './version.js';
 
 export const EXIT_OK = 0;
 export const EXIT_FAILURE = 1;
@@ -88,7 +89,48 @@ export function reportSlice(
   streams.out('');
 }
 
-export interface BinaryResult {
+export /** The manifest a payload would produce, for reporting without writing. */
+function describePayload(payload: Payload): Manifest {
+  return {
+    tool: TOOL_NAME,
+    toolVersion: TOOL_VERSION,
+    binary: payload.binary,
+    payload: {
+      ...payload.layout,
+      moduleEntrySize: payload.moduleEntrySize,
+      moduleCount: payload.modules.length,
+    },
+    modules: payload.modules.map((module) => ({
+      name: module.name,
+      path: module.path,
+      kind: module.kind,
+      size: module.size,
+      offsetInBlob: module.offsetInBlob,
+      offsetInFile: module.offsetInFile,
+      sha256: null,
+      sha256Packed: null,
+      rewrittenReferences: 0,
+      writtenTo: null,
+      sourcemap: module.sourcemap
+        ? {
+            ...module.sourcemap,
+            offsetInFile: payload.layout.blobStart + module.sourcemap.offset,
+            writtenTo: null,
+          }
+        : null,
+      bytecode: module.bytecode
+        ? {
+            ...module.bytecode,
+            offsetInFile: payload.layout.blobStart + module.bytecode.offset,
+            writtenTo: null,
+          }
+        : null,
+      rawEntryHex: module.rawEntryHex,
+    })),
+  };
+}
+
+interface BinaryResult {
   manifests: Manifest[];
   failures: string[];
 }
@@ -115,12 +157,14 @@ export function unpackBinary(
         ? join(options.outputDir, slice.architecture ?? `slice-${slice.start}`)
         : options.outputDir;
     try {
-      const manifest = extractSlice(reader, container, slice, {
-        outputDir,
-        write: !options.listOnly,
-        includeBytecode: options.includeBytecode,
-        verbatim: options.verbatim,
-      });
+      const payload = readPayload(reader, container, slice);
+      const manifest = options.listOnly
+        ? describePayload(payload)
+        : writeModules(payload, {
+            outputDir,
+            includeBytecode: options.includeBytecode,
+            verbatim: options.verbatim,
+          });
       if (!options.listOnly) {
         writeManifest(manifest, outputDir);
       }

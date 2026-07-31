@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { BinaryReader } from '../src/binary-reader.js';
 import { inspectContainer } from '../src/container.js';
-import { extractSlice } from '../src/extract.js';
+import { readPayload } from '../src/read-payload.js';
+import { writeModules } from '../src/write-modules.js';
 import { rewriteReferences } from '../src/rewrite.js';
 import type { Manifest } from '../src/types.js';
 import { buildSyntheticExecutable } from './helpers/synthetic.js';
@@ -37,9 +38,8 @@ function extract(verbatim: boolean): { manifest: Manifest; outputDir: string } {
   assert.ok(slice);
 
   return {
-    manifest: extractSlice(reader, container, slice, {
+    manifest: writeModules(readPayload(reader, container, slice), {
       outputDir,
-      write: true,
       includeBytecode: false,
       verbatim,
     }),
