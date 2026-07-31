@@ -126,11 +126,54 @@ sizes and strides no current release emits.
 
 ## Library
 
-Reading a payload writes nothing. Each module carries its byte range and reads
-it on demand, so hashing, diffing or piping one somewhere never has to go
-through a directory:
+Three steps, each doing one thing:
+
+| Step | Does | Returns |
+| :--- | :--- | :--- |
+| `readSlice` | Parses one image of the executable. Touches no disk. | the modules, each able to read its own bytes |
+| `processSlice` | Rewrites the packed references. | a payload carrying the patched contents |
+| `writeSliceFs` | Writes the files. | the manifest describing what was written |
+
+Extracting a binary, which is what the CLI does:
 
 ```ts
+import {
+  BinaryReader,
+  inspectContainer,
+  processSlice,
+  readSlice,
+  writeManifest,
+  writeSliceFs,
+} from 'bun-unpacker';
+
+const outputDir = 'extracted';
+
+using reader = BinaryReader.open('/path/to/binary');
+const container = inspectContainer(reader);
+
+for (const slice of container.slices) {
+  const payload = processSlice(readSlice(reader, container, slice), {
+    outputDir,
+    patchPaths: true,
+  });
+  const manifest = writeSliceFs(payload, { outputDir, includeBytecode: false });
+  writeManifest(manifest, outputDir);
+}
+```
+
+Both `processSlice` and `writeSliceFs` take the output directory, and it has to
+be the same one. References are rewritten relative to where each file will
+land, so two different directories give you files that cannot find each other.
+
+
+### Reading without writing
+
+Stop after `readSlice` when the files are not the point. Every module reads its
+own bytes on demand, so hashing, diffing or piping one somewhere never has to
+go through a directory:
+
+```ts
+import { createHash } from 'node:crypto';
 import { BinaryReader, inspectContainer, readSlice } from 'bun-unpacker';
 
 using reader = BinaryReader.open('/path/to/binary');
@@ -138,35 +181,31 @@ const container = inspectContainer(reader);
 
 for (const slice of container.slices) {
   for (const module of readSlice(reader, container, slice).modules) {
-    console.log(module.path, module.size, module.kind);
-    createHash('sha256').update(module.bytes());
-    module.stream().pipe(somewhere); // for the ones too large to hold
+    const digest = createHash('sha256').update(module.bytes()).digest('hex');
+    console.log(module.path, module.size, module.kind, digest);
   }
 }
 ```
 
-Patching and writing are separate steps after it, so each does one thing:
+What a module gives you:
 
-```ts
-import { readSlice, processSlice, writeSliceFs, writeManifest } from 'bun-unpacker';
+| Field | |
+| :--- | :--- |
+| `name` | the path as the packer stored it, `/$bunfs/root/src/index.js` |
+| `path` | where it lands relative to an output directory, collisions already resolved |
+| `size`, `kind` | byte count, and a human readable type such as `Mach-O arm64` |
+| `bytes()` | the whole file, in memory |
+| `stream()` | a `Readable`, for the ones too large to hold at once |
+| `sourcemap`, `bytecode` | byte ranges or null; pass one to `stream(region)` to read it |
+| `offsetInFile`, `rawEntryHex` | where it sits in the binary, and its raw module table entry |
 
-const outputDir = 'extracted';
 
-// read → process → write. patchPaths: false returns the payload untouched.
-const payload = processSlice(readSlice(reader, container, slice), {
-  outputDir,
-  patchPaths: true,
-});
-const manifest = writeSliceFs(payload, { outputDir, includeBytecode: false });
-writeManifest(manifest, outputDir);
-```
+### Wrapping the CLI
 
-Both `processSlice` and `writeSliceFs` take the output directory, and it has to
-be the same one: the references are rewritten relative to where each file will
-land.
-
-`unpackBinary` and `unpackTargets` are exported as well, for tools that wrap
-this CLI with their own way of finding binaries.
+`unpackBinary` and `unpackTargets` run the whole pipeline with the reporting
+the CLI prints, for tools that supply their own way of finding binaries. The
+usage helpers `parseArguments`, `requireOutputDir` and `requireBoolean` are
+exported for the same reason, so a wrapper's own flags validate identically.
 
 
 ## How it works

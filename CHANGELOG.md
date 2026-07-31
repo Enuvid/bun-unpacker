@@ -8,6 +8,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.3.1]
+
+
+### Changed
+
+- Documentation only. The library section now leads with what the three steps
+  do, shows one complete example of the pipeline rather than two fragments,
+  lists what a module actually offers, and its snippets run as written.
+
+
 ## [0.3.0]
 
 
@@ -83,7 +93,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.1.0...v0.1.1
