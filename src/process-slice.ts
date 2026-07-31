@@ -1,6 +1,13 @@
 import { Readable } from 'node:stream';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, extname, join, resolve } from 'node:path';
 import { rewriteReferences } from './rewrite.js';
+
+/**
+ * Only JavaScript. The substitution turns a string literal into an expression,
+ * which is meaningless anywhere else: in JSON a value after a colon passes the
+ * same check and rewriting it would produce a file that no longer parses.
+ */
+const REWRITABLE = new Set(['.js', '.mjs', '.cjs']);
 import type { Payload, PayloadModule, ProcessOptions } from './types.js';
 
 /**
@@ -19,7 +26,7 @@ export function processSlice(payload: Payload, options: ProcessOptions): Payload
   const outputRoot = resolve(options.outputDir);
 
   const modules: PayloadModule[] = payload.modules.map((module) => {
-    if (!module.path.endsWith('.js')) {
+    if (!REWRITABLE.has(extname(module.path))) {
       return module;
     }
 

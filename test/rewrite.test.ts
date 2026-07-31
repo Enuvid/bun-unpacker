@@ -79,6 +79,17 @@ describe('rewriting packed references', () => {
     assert.equal(record.sha256, record.sha256Packed);
   });
 
+  it('patches every JavaScript extension the packer might store', () => {
+    for (const extension of ['js', 'mjs', 'cjs']) {
+      const result = rewriteReferences(
+        `var a=("/$bunfs/root/asset.${extension}");`,
+        '/out',
+        '/out',
+      );
+      assert.equal(result.rewritten, 1, extension);
+    }
+  });
+
   it('touches nothing that is not JavaScript', () => {
     const { manifest, outputDir } = extract(true);
     assert.equal(readFileSync(join(outputDir, 'assets/logo.txt'), 'utf8'), 'logo');
