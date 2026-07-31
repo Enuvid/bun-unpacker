@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Called by the publish workflow, so a release cannot go out ahead of it.
+  workflow_call:
 
 permissions:
   contents: read

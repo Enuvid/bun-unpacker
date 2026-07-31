@@ -23,12 +23,10 @@ release needs a one-time password.
    checks that the tag matches `package.json`, runs `prepublishOnly`, and
    publishes with provenance.
 
-Creating the release does not wait for CI, and the publish workflow is the
-shorter of the two, so it gates itself: before publishing it waits for the CI
-run on the same commit and refuses to continue unless that run succeeded.
-Without it, only the lint, build and tests inside `prepublishOnly` would stand
-between a push and npm, and those run on one operating system and one Node
-version rather than the matrix.
+Creating a release does not wait for the CI run triggered by the push, so the
+publish workflow calls CI itself and its publishing job depends on it. The
+whole matrix runs against the tagged commit, and nothing reaches npm until it
+passes.
 
 A manual `workflow_dispatch` run of the publish workflow only packs. It never
 publishes, so it is safe as a rehearsal from any branch.

@@ -11,6 +11,9 @@
 #   3. Make the repository public. Provenance is written to a public Sigstore
 #      transparency log and is rejected for private repositories.
 #
+# The publish job depends on the CI workflow, which runs here in full against
+# the tagged commit, so a release cannot reach npm ahead of its own tests.
+#
 # workflow_dispatch only ever packs, never publishes: a manual run from an
 # arbitrary branch would otherwise reach npm without the tag check below.
 name: Publish
@@ -22,11 +25,18 @@ on:
 
 permissions:
   contents: read
-  actions: read # to check that CI passed on this commit
   id-token: write # OIDC, which is both the credential and the provenance proof
 
 jobs:
+  # The whole of CI, against the tagged commit. `needs` below is what keeps a
+  # release from reaching npm ahead of it.
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   publish:
+    needs: ci
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,27 +55,6 @@ jobs:
             echo "tag $GITHUB_REF_NAME does not match package.json version $VERSION" >&2
             exit 1
           fi
-
-      # Publishing a release does not wait for CI, and this job is the shorter of
-      # the two, so without this it can finish first. prepublishOnly would still
-      # run lint, build and the tests, but only here, on one OS and one Node.
-      # The matrix and the smoke test live in CI.
-      - name: Require CI to have passed on this commit
-        if: github.event_name == 'release'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for attempt in $(seq 1 60); do
-            conclusion="$(gh run list --workflow=ci.yml --commit "$GITHUB_SHA" \
-              --limit 1 --json conclusion --jq '.[0].conclusion // "pending"')"
-            case "$conclusion" in
-              success) echo "CI passed on $GITHUB_SHA"; exit 0 ;;
-              pending|null|"") echo "waiting for CI on $GITHUB_SHA ($attempt)"; sleep 20 ;;
-              *) echo "CI concluded '$conclusion' on $GITHUB_SHA" >&2; exit 1 ;;
-            esac
-          done
-          echo "timed out waiting for CI on $GITHUB_SHA" >&2
-          exit 1
 
       - run: npm ci
 
