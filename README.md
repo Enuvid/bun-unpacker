@@ -167,8 +167,16 @@ for (const slice of container.slices) {
 }
 ```
 
-The loop is over slices because a universal Mach-O holds one image per
-architecture, each with a payload of its own. Ordinary binaries yield one.
+Two levels are in play, and it is worth keeping them apart. `container.slices`
+are the images inside the executable, one per architecture: an ordinary binary
+has a single one, a universal Mach-O has several, each carrying a payload of
+its own. `payload.modules` are the packed files inside one image, which is
+where the bundle, the addons and the assets are.
+
+The loop above is over the first. Getting every file out of one image is not a
+loop at all: `writeSliceFs` takes the payload and writes all of its modules in
+one call. So a Linux or Windows binary goes round once, and only a universal
+Mach-O goes round more than that.
 
 Both `processSlice` and `writeSliceFs` take the output directory and it has to
 be the same one. References are rewritten relative to where each file will
