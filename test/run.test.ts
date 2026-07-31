@@ -73,7 +73,7 @@ describe('cli', () => {
 
     const manifest = JSON.parse(readFileSync(join(outputDir, 'manifest.json'), 'utf8')) as Manifest;
     assert.equal(manifest.files.length, 2);
-    assert.match(result.out, /2 modules/);
+    assert.match(result.out, /2 files/);
   });
 
   it('writes nothing under --list', () => {

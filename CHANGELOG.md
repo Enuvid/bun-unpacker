@@ -8,6 +8,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.4.1]
+
+
+### Changed
+
+- The report says files rather than modules, matching what everything else
+  calls them.
+
+
 ## [0.4.0]
 
 
@@ -117,7 +126,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.2.0...v0.3.0

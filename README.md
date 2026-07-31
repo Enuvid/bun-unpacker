@@ -29,7 +29,7 @@ is what makes the output runnable rather than inert. Pass
 $ npx bun-unpacker ./my-app --list
 
 my-app  58.4 MB  (/home/you/build/my-app)
-ELF · x86-64 · payload 41.2 MB at 0x2c41008 · 3 modules · 52-byte entries
+ELF · x86-64 · payload 41.2 MB at 0x2c41008 · 3 files · 52-byte entries
 
   path             size  kind                           bytecode
   -----------  --------  -----------------------------  --------

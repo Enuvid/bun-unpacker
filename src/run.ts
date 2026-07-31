@@ -54,7 +54,7 @@ export function reportSlice(
 
   streams.out(
     `${label} · payload ${formatBytes(payload.blobSize)} at 0x${payload.blobStart.toString(16)} · ` +
-      `${payload.fileCount} modules · ${payload.moduleEntrySize}-byte entries · ` +
+      `${payload.fileCount} files · ${payload.moduleEntrySize}-byte entries · ` +
       `trailer at 0x${payload.trailerOffset.toString(16)}`,
   );
   streams.out('');
