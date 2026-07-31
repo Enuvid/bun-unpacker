@@ -135,6 +135,72 @@ even if it reshapes them, and the synthetic executables the tests build cover
 sizes and strides no current release emits.
 
 
+## How it works
+
+Bun appends its payload to the end of the executable image:
+
+```text
+  ...native executable...
+  payload blob          bytecode cache, file contents, sourcemaps,
+                        NUL-terminated names
+  module table          moduleCount * entrySize
+  offsets struct        u64 blobSize, u32 tableOffset, u32 tableLength, ...
+  "\n---- Bun! ----\n"
+  ...native metadata... ELF section headers, Mach-O code signature, ...
+```
+
+Two details make a naive reader fail. Native metadata follows the trailer, so
+it does not sit at the end of the file. And Bun's own runtime carries the magic
+as a string literal, so a real binary contains several copies and only the last
+one marks the payload.
+
+The size of the offsets struct and the stride of the module table are probed
+instead of hard-coded. A candidate is accepted only if the first table entry
+resolves to a packer path: `/$bunfs/root/...` on Linux and macOS,
+`B:/~BUN/root/...` on Windows. That keeps the parser working across Bun
+releases that reshape those structures.
+
+
+## Limitations
+
+Patching is a textual substitution over JavaScript source. It finds string
+literals holding a packer path and turns them into `__dirname` expressions, and
+it only does so where the literal sits in expression position, which is decided
+by looking at the characters either side of it. That is a heuristic, not a
+parse. A file holding even one reference it cannot place safely is left exactly
+as packed rather than half rewritten, so the failure mode is a bundle that
+behaves as it did before rather than one that is subtly broken. Still, the
+following are outside what it can reach.
+
+**Paths that are not literals.** A path assembled at runtime, `"/$bunfs/root/"`
+concatenated with a name from elsewhere, is invisible: there is no complete
+literal to replace. So is one stored in JSON or any other data file, which is
+left alone deliberately, since turning a JSON value into an expression would
+produce a file that no longer parses.
+
+**Paths inside native addons.** A `.node` module is compiled code. If it opens
+a packer path of its own, that string lives in the compiled binary and no
+amount of rewriting JavaScript will change it. Loading the addon works, because
+the `require` that loads it is a JavaScript literal and gets patched, but what
+the addon does with paths afterwards is beyond reach. The same applies to any
+path handed to a subprocess.
+
+**Things the extracted bundle needs that were never packed.** A compiler leaves
+some imports unbundled, expecting them from `node_modules` at runtime. The
+Claude Code binary references `ws`, `undici`, `react` and a handful of others
+that way, and `bun:ffi`, which exists only inside bun. Patching cannot supply
+what was not there.
+
+**Anything that assumed it was one file.** `process.execPath` inside a compiled
+binary points at the binary itself; extracted, it points at whatever runtime is
+running the bundle, so code that re-spawns itself does something different.
+
+The output directory can be moved as a whole, since the rewritten paths are
+relative to each file, but moving files around inside it breaks them. Passing
+`--path-patching false` avoids all of this by changing nothing, at the cost of
+an extraction that cannot run.
+
+
 ## Library
 
 The CLI is a thin layer over three steps, and you can stop after any of them.
@@ -160,13 +226,12 @@ const container = inspectContainer(reader);
 
 for (const slice of container.slices) {
   const payload = readSlice(reader, container, slice);
-  const written = [];
-
-  for (const file of payload.files) {
-    const patched = processFile(file, { outputDir, patchPaths: true });
-    written.push(writeFile(reader, patched, { outputDir, includeBytecode: false }));
-  }
-
+  const written = payload.files.map((file) =>
+    writeFile(reader, processFile(file, { outputDir, patchPaths: true }), {
+      outputDir,
+      includeBytecode: false,
+    }),
+  );
   writeManifest(buildManifest(payload, written), outputDir);
 }
 ```
@@ -371,72 +436,6 @@ The pieces this CLI is built from are exported as well, argument parsing with
 its validations, the reporting, the exit codes and the stream handles, so a
 wrapper can add its own way of finding binaries without reimplementing the rest
 or drifting from it.
-
-
-## How it works
-
-Bun appends its payload to the end of the executable image:
-
-```text
-  ...native executable...
-  payload blob          bytecode cache, file contents, sourcemaps,
-                        NUL-terminated names
-  module table          moduleCount * entrySize
-  offsets struct        u64 blobSize, u32 tableOffset, u32 tableLength, ...
-  "\n---- Bun! ----\n"
-  ...native metadata... ELF section headers, Mach-O code signature, ...
-```
-
-Two details make a naive reader fail. Native metadata follows the trailer, so
-it does not sit at the end of the file. And Bun's own runtime carries the magic
-as a string literal, so a real binary contains several copies and only the last
-one marks the payload.
-
-The size of the offsets struct and the stride of the module table are probed
-instead of hard-coded. A candidate is accepted only if the first table entry
-resolves to a packer path: `/$bunfs/root/...` on Linux and macOS,
-`B:/~BUN/root/...` on Windows. That keeps the parser working across Bun
-releases that reshape those structures.
-
-
-## Limitations
-
-Patching is a textual substitution over JavaScript source. It finds string
-literals holding a packer path and turns them into `__dirname` expressions, and
-it only does so where the literal sits in expression position, which is decided
-by looking at the characters either side of it. That is a heuristic, not a
-parse. A file holding even one reference it cannot place safely is left exactly
-as packed rather than half rewritten, so the failure mode is a bundle that
-behaves as it did before rather than one that is subtly broken. Still, the
-following are outside what it can reach.
-
-**Paths that are not literals.** A path assembled at runtime, `"/$bunfs/root/"`
-concatenated with a name from elsewhere, is invisible: there is no complete
-literal to replace. So is one stored in JSON or any other data file, which is
-left alone deliberately, since turning a JSON value into an expression would
-produce a file that no longer parses.
-
-**Paths inside native addons.** A `.node` module is compiled code. If it opens
-a packer path of its own, that string lives in the compiled binary and no
-amount of rewriting JavaScript will change it. Loading the addon works, because
-the `require` that loads it is a JavaScript literal and gets patched, but what
-the addon does with paths afterwards is beyond reach. The same applies to any
-path handed to a subprocess.
-
-**Things the extracted bundle needs that were never packed.** A compiler leaves
-some imports unbundled, expecting them from `node_modules` at runtime. The
-Claude Code binary references `ws`, `undici`, `react` and a handful of others
-that way, and `bun:ffi`, which exists only inside bun. Patching cannot supply
-what was not there.
-
-**Anything that assumed it was one file.** `process.execPath` inside a compiled
-binary points at the binary itself; extracted, it points at whatever runtime is
-running the bundle, so code that re-spawns itself does something different.
-
-The output directory can be moved as a whole, since the rewritten paths are
-relative to each file, but moving files around inside it breaks them. Passing
-`--path-patching false` avoids all of this by changing nothing, at the cost of
-an extraction that cannot run.
 
 
 ## Scope and licensing
