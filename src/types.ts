@@ -70,6 +70,8 @@ export interface PayloadModule {
   sourcemap: Region | null;
   bytecode: Region | null;
   rawEntryHex: string;
+  /** Non-zero once `processSlice` has rewritten packed references. */
+  rewrittenReferences: number;
   /** Reads the whole file into memory. */
   bytes: () => Buffer;
   /** For files too large to hold at once, such as the bytecode cache. */
@@ -86,12 +88,17 @@ export interface Payload {
   modules: PayloadModule[];
 }
 
+export interface ProcessOptions {
+  /** Must match the directory the payload is written to afterwards. */
+  outputDir: string;
+  /** False returns the payload untouched, every module exactly as packed. */
+  patchPaths: boolean;
+}
+
 export interface WriteOptions {
   outputDir: string;
   /** Dump the JSC bytecode cache alongside the sources. It is very large. */
   includeBytecode: boolean;
-  /** Leave files exactly as packed, references to the packer's paths and all. */
-  verbatim: boolean;
 }
 
 export interface ExtractedRegion extends Region {

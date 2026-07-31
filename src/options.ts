@@ -6,7 +6,7 @@ export interface CliOptions {
   outputDir: string;
   listOnly: boolean;
   includeBytecode: boolean;
-  verbatim: boolean;
+  patchPaths: boolean;
   json: boolean;
   showHelp: boolean;
   showVersion: boolean;
@@ -24,10 +24,15 @@ options:
   -o, --out <dir>   output directory (default: ./${DEFAULT_OUTPUT_DIR}). A universal binary
                     gets one sub-directory per architecture.
   -l, --list        print the embedded module table, write nothing
-      --verbatim    write the files exactly as packed, leaving the references
-                    to the packer's virtual filesystem in place. Without this,
-                    those references are rewritten to point at the extracted
-                    files, which is what makes the output runnable.
+      --path-patching <true|false>
+                    default true. A packed bundle refers to its assets and
+                    native addons by absolute paths into the packer's virtual
+                    filesystem, such as /$bunfs/root/mermaid.min.js, and that
+                    filesystem exists only inside the compiled binary. Patching
+                    points those references at the extracted files instead, so
+                    the output can run. Turn it off to get every file exactly
+                    as packed, which is what you want for verifying against the
+                    binary or diffing one build against another.
       --bytecode    also dump the JSC bytecode cache (very large, rarely useful)
       --json        print the manifest as JSON on stdout
   -v, --version     print the version of this tool
@@ -58,6 +63,21 @@ export function requireOutputDir(value: string | undefined): string {
   return value;
 }
 
+/** An option written as `--name true` or `--name false`, nothing else. */
+export function requireBoolean(
+  name: string,
+  value: string | undefined,
+  fallback: boolean,
+): boolean {
+  if (value === undefined) {
+    return fallback;
+  }
+  if (value === 'true' || value === 'false') {
+    return value === 'true';
+  }
+  throw new UsageError(`${name} takes true or false, got ${value}`);
+}
+
 export function requireAtMostOneBinary(positionals: string[]): string | null {
   if (positionals.length > 1) {
     throw new UsageError(`expected at most one binary, got ${positionals.length}`);
@@ -74,7 +94,7 @@ export function parseArguments(argv: string[]): CliOptions {
       options: {
         out: { type: 'string', short: 'o' },
         list: { type: 'boolean', short: 'l' },
-        verbatim: { type: 'boolean' },
+        'path-patching': { type: 'string' },
         bytecode: { type: 'boolean' },
         json: { type: 'boolean' },
         version: { type: 'boolean', short: 'v' },
@@ -91,7 +111,7 @@ export function parseArguments(argv: string[]): CliOptions {
     outputDir: requireOutputDir(values.out),
     listOnly: values.list ?? false,
     includeBytecode: values.bytecode ?? false,
-    verbatim: values.verbatim ?? false,
+    patchPaths: requireBoolean('--path-patching', values['path-patching'], true),
     json: values.json ?? false,
     showHelp: values.help ?? false,
     showVersion: values.version ?? false,

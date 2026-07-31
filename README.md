@@ -11,10 +11,16 @@ The package contains source code only. It ships no third-party code and no
 extracted artifacts, and it downloads nothing: you point it at a binary that is
 already on your machine. Nothing is executed, decompiled or deobfuscated.
 
-Extracted bundles reach their assets by absolute path into a virtual filesystem
-that exists only inside the compiled binary, so those references are rewritten
-to point at the extracted files. That is what makes the output runnable rather
-than inert. `--verbatim` turns it off.
+A packed bundle refers to its assets and native addons by absolute paths into
+the packer's virtual filesystem, such as `/$bunfs/root/mermaid.min.js` on Linux
+and macOS or `B:/~BUN/root/mermaid.min.js` on Windows. That filesystem is
+served by the runtime inside the compiled binary and exists nowhere else, so
+extracted files carrying those references look for their assets at a path that
+is not there.
+
+By default those references are patched to point at the extracted files, which
+is what makes the output runnable rather than inert. Pass
+`--path-patching false` to get every file exactly as packed.
 
 
 ## Quick start
@@ -48,7 +54,7 @@ bunx bun-unpacker ./my-app -o dump  # explicit target
 | :------------------ | :--------------------------------------------------------------------------------------------- |
 | `-o`, `--out <dir>` | Output directory, default `./out`. A universal binary gets one sub-directory per architecture. |
 | `-l`, `--list`      | Print the module table and write nothing.                                                      |
-| `--verbatim`        | Write every file exactly as it was packed, byte for byte, leaving the virtual filesystem references in place. The output will not run, which is the point: this is the mode for verifying against the binary, or for diffing one build against another. |
+| `--path-patching <true\|false>` | Default true. Points the packed references at the extracted files so the output can run. Set it to false to write every file exactly as packed, byte for byte, which is the mode for verifying against the binary or diffing one build against another. |
 | `--bytecode`        | Also dump the JSC bytecode cache. It is typically several times the size of the source.        |
 | `--json`            | Print the manifest as JSON on stdout.                                                          |
 | `-v`, `--version`   | Version of this tool.                                                                          |
@@ -125,13 +131,13 @@ it on demand, so hashing, diffing or piping one somewhere never has to go
 through a directory:
 
 ```ts
-import { BinaryReader, inspectContainer, readPayload } from 'bun-unpacker';
+import { BinaryReader, inspectContainer, readSlice } from 'bun-unpacker';
 
 using reader = BinaryReader.open('/path/to/binary');
 const container = inspectContainer(reader);
 
 for (const slice of container.slices) {
-  for (const module of readPayload(reader, container, slice).modules) {
+  for (const module of readSlice(reader, container, slice).modules) {
     console.log(module.path, module.size, module.kind);
     createHash('sha256').update(module.bytes());
     module.stream().pipe(somewhere); // for the ones too large to hold
@@ -139,19 +145,25 @@ for (const slice of container.slices) {
 }
 ```
 
-Writing is a separate step, and the manifest is what it returns:
+Patching and writing are separate steps after it, so each does one thing:
 
 ```ts
-import { readPayload, writeModules, writeManifest } from 'bun-unpacker';
+import { readSlice, processSlice, writeSliceFs, writeManifest } from 'bun-unpacker';
 
-const payload = readPayload(reader, container, slice);
-const manifest = writeModules(payload, {
-  outputDir: 'extracted',
-  includeBytecode: false,
-  verbatim: false,
+const outputDir = 'extracted';
+
+// read → process → write. patchPaths: false returns the payload untouched.
+const payload = processSlice(readSlice(reader, container, slice), {
+  outputDir,
+  patchPaths: true,
 });
-writeManifest(manifest, 'extracted');
+const manifest = writeSliceFs(payload, { outputDir, includeBytecode: false });
+writeManifest(manifest, outputDir);
 ```
+
+Both `processSlice` and `writeSliceFs` take the output directory, and it has to
+be the same one: the references are rewritten relative to where each file will
+land.
 
 `unpackBinary` and `unpackTargets` are exported as well, for tools that wrap
 this CLI with their own way of finding binaries.

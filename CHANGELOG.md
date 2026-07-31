@@ -13,19 +13,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Reading a payload and writing it out are now separate. `readPayload` returns
-  the modules with their byte ranges, each able to hand back its own contents
-  through `bytes()` or `stream()`, and writes nothing. `writeModules` performs
-  the side effect and returns the manifest, which is where a manifest belongs.
+- Reading, processing and writing are now three steps instead of one function
+  with a flag. `readSlice` returns the modules with their byte ranges, each
+  able to hand back its own contents through `bytes()` or `stream()`, and
+  writes nothing. `processSlice` rewrites the packed references and returns a
+  payload carrying the patched contents. `writeSliceFs` performs the side
+  effect and returns the manifest, which is where a manifest belongs.
 - `extractSlice` and `ExtractOptions` are gone, along with the `write` flag
-  that turned one function into two different operations. Not writing now
-  means not calling `writeModules`.
+  that turned one function into two different operations.
+- The flag that controls rewriting is `--path-patching <true|false>`, default
+  true, replacing `--verbatim`. The name says what it does rather than what it
+  refuses to do, and its help text explains the packer paths it exists for.
 - `Manifest.binary` is `ManifestBinary`, a named type rather than an inline one.
 
 
 ### Added
 
-- `Payload`, `PayloadModule` and `WriteOptions` in the public types.
+- `Payload`, `PayloadModule`, `ProcessOptions` and `WriteOptions` in the public
+  types.
 
 
 ## [0.2.0]
@@ -36,7 +41,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - References to the packer's virtual filesystem are rewritten to point at the
   extracted files, so an extracted bundle can find its assets and its native
   addons. They become `__dirname` expressions rather than absolute paths, which
-  keeps the output directory movable. `--verbatim` opts out and writes every
+  keeps the output directory movable. `--path-patching false` writes every
   file exactly as packed.
 - `sha256Packed` and `rewrittenReferences` in the manifest, so the packed bytes
   remain verifiable against the binary even when the file on disk differs.
@@ -44,7 +49,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- `UnpackOptions` and `ExtractOptions` gained a required `verbatim` field.
+- `UnpackOptions` gained a required `patchPaths` field.
 
 
 ## [0.1.1]

@@ -1,7 +1,8 @@
 export { BinaryReader } from './binary-reader.js';
 export { ContainerError, describeContents, inspectContainer } from './container.js';
-export { BYTECODE_DIRECTORY, MANIFEST_FILE_NAME, readPayload } from './read-payload.js';
-export { writeManifest, writeModules } from './write-modules.js';
+export { BYTECODE_DIRECTORY, MANIFEST_FILE_NAME, readSlice } from './read-slice.js';
+export { processSlice } from './process-slice.js';
+export { writeManifest, writeSliceFs } from './write-slice-fs.js';
 export { formatBytes, renderTable } from './format.js';
 export {
   DEFAULT_OUTPUT_DIR,
@@ -9,6 +10,7 @@ export {
   asUsageError,
   parseArguments,
   requireAtMostOneBinary,
+  requireBoolean,
   requireOutputDir,
 } from './options.js';
 export type { CliOptions } from './options.js';
@@ -29,6 +31,7 @@ export type {
   ContainerInfo,
   Payload,
   PayloadModule,
+  ProcessOptions,
   WriteOptions,
   ExecutableFormat,
   ExtractedModule,

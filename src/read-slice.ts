@@ -36,10 +36,10 @@ function uniquePath(candidate: string, taken: Set<string>): string {
 }
 
 /**
- * Parses one executable image and returns what it holds. Nothing is written:
- * each module carries its own byte range, and reads it on demand.
+ * Parses one image of an executable and returns its payload. Nothing is
+ * written: each module carries its own byte range and reads it on demand.
  */
-export function readPayload(
+export function readSlice(
   reader: BinaryReader,
   container: ContainerInfo,
   slice: ImageSlice,
@@ -76,6 +76,7 @@ export function readPayload(
       sourcemap: module.sourcemap,
       bytecode: module.bytecode,
       rawEntryHex: module.rawEntryHex,
+      rewrittenReferences: 0,
       bytes: () => read(module.contents),
       stream: (region) => open(region ?? module.contents),
     };

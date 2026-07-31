@@ -12,7 +12,7 @@ import {
   inspectContainer,
   universalArchitectures,
 } from '../src/container.js';
-import { readPayload } from '../src/read-payload.js';
+import { readSlice } from '../src/read-slice.js';
 import {
   buildSyntheticExecutable,
   elfHeader,
@@ -163,7 +163,7 @@ describe('universal binaries', () => {
       ['x86-64', 'arm64'],
     );
 
-    const payloads = container.slices.map((slice) => readPayload(reader, container, slice));
+    const payloads = container.slices.map((slice) => readSlice(reader, container, slice));
 
     assert.equal(payloads[0]?.modules.length, 1);
     assert.equal(payloads[1]?.modules.length, 2);

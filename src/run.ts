@@ -1,8 +1,9 @@
 import { basename, join, relative, resolve } from 'node:path';
 import { BinaryReader } from './binary-reader.js';
 import { inspectContainer } from './container.js';
-import { readPayload } from './read-payload.js';
-import { writeManifest, writeModules } from './write-modules.js';
+import { processSlice } from './process-slice.js';
+import { readSlice } from './read-slice.js';
+import { writeManifest, writeSliceFs } from './write-slice-fs.js';
 import { formatBytes, renderTable } from './format.js';
 import type { CliOptions } from './options.js';
 import { HELP_TEXT, UsageError, parseArguments } from './options.js';
@@ -32,7 +33,7 @@ export interface UnpackOptions {
   outputDir: string;
   listOnly: boolean;
   includeBytecode: boolean;
-  verbatim: boolean;
+  patchPaths: boolean;
   json: boolean;
 }
 
@@ -109,7 +110,7 @@ function describePayload(payload: Payload): Manifest {
       offsetInFile: module.offsetInFile,
       sha256: null,
       sha256Packed: null,
-      rewrittenReferences: 0,
+      rewrittenReferences: module.rewrittenReferences,
       writtenTo: null,
       sourcemap: module.sourcemap
         ? {
@@ -157,14 +158,15 @@ export function unpackBinary(
         ? join(options.outputDir, slice.architecture ?? `slice-${slice.start}`)
         : options.outputDir;
     try {
-      const payload = readPayload(reader, container, slice);
+      const payload = processSlice(readSlice(reader, container, slice), {
+        outputDir,
+        // Listing writes nothing, so patching would only read every module
+        // into memory for a report that never mentions it.
+        patchPaths: options.patchPaths && !options.listOnly,
+      });
       const manifest = options.listOnly
         ? describePayload(payload)
-        : writeModules(payload, {
-            outputDir,
-            includeBytecode: options.includeBytecode,
-            verbatim: options.verbatim,
-          });
+        : writeSliceFs(payload, { outputDir, includeBytecode: options.includeBytecode });
       if (!options.listOnly) {
         writeManifest(manifest, outputDir);
       }

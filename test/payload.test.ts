@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { BinaryReader } from '../src/binary-reader.js';
 import { inspectContainer } from '../src/container.js';
-import { readPayload } from '../src/read-payload.js';
-import { writeModules } from '../src/write-modules.js';
+import { readSlice } from '../src/read-slice.js';
+import { writeSliceFs } from '../src/write-slice-fs.js';
 import {
   PAYLOAD_TRAILER,
   PayloadNotFoundError,
@@ -163,10 +163,9 @@ describe('extraction', () => {
     const container = inspectContainer(reader);
     const slice = container.slices[0];
     assert.ok(slice);
-    return writeModules(readPayload(reader, container, slice), {
+    return writeSliceFs(readSlice(reader, container, slice), {
       outputDir: directory,
       includeBytecode: true,
-      verbatim: true,
     });
   }
 
@@ -236,7 +235,7 @@ describe('extraction', () => {
     const slice = container.slices[0];
     assert.ok(slice);
 
-    const payload = readPayload(reader, container, slice);
+    const payload = readSlice(reader, container, slice);
 
     assert.equal(payload.modules.length, SAMPLE_MODULES.length);
     for (const [index, sample] of SAMPLE_MODULES.entries()) {
@@ -251,7 +250,7 @@ describe('extraction', () => {
     const slice = container.slices[0];
     assert.ok(slice);
 
-    const module = readPayload(reader, container, slice).modules[0];
+    const module = readSlice(reader, container, slice).modules[0];
     assert.ok(module);
 
     const chunks: Buffer[] = [];

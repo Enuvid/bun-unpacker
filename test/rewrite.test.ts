@@ -6,8 +6,9 @@ import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { BinaryReader } from '../src/binary-reader.js';
 import { inspectContainer } from '../src/container.js';
-import { readPayload } from '../src/read-payload.js';
-import { writeModules } from '../src/write-modules.js';
+import { processSlice } from '../src/process-slice.js';
+import { readSlice } from '../src/read-slice.js';
+import { writeSliceFs } from '../src/write-slice-fs.js';
 import { rewriteReferences } from '../src/rewrite.js';
 import type { Manifest } from '../src/types.js';
 import { buildSyntheticExecutable } from './helpers/synthetic.js';
@@ -20,7 +21,7 @@ after(() => {
 const BUNDLE_SOURCE = 'var asset="/$bunfs/root/assets/logo.txt";module.exports=asset;';
 
 let counter = 0;
-function extract(verbatim: boolean): { manifest: Manifest; outputDir: string } {
+function extract(patchPaths: boolean): { manifest: Manifest; outputDir: string } {
   counter += 1;
   const binary = join(workspace, `binary-${counter}`);
   writeFileSync(
@@ -38,18 +39,17 @@ function extract(verbatim: boolean): { manifest: Manifest; outputDir: string } {
   assert.ok(slice);
 
   return {
-    manifest: writeModules(readPayload(reader, container, slice), {
-      outputDir,
-      includeBytecode: false,
-      verbatim,
-    }),
+    manifest: writeSliceFs(
+      processSlice(readSlice(reader, container, slice), { outputDir, patchPaths }),
+      { outputDir, includeBytecode: false },
+    ),
     outputDir,
   };
 }
 
 describe('rewriting packed references', () => {
   it('turns a reference into a path relative to the file that reads it', () => {
-    const { manifest, outputDir } = extract(false);
+    const { manifest, outputDir } = extract(true);
     const written = readFileSync(join(outputDir, 'src/index.js'), 'utf8');
 
     assert.match(
@@ -61,7 +61,7 @@ describe('rewriting packed references', () => {
   });
 
   it('records both hashes, so the packed bytes stay verifiable', () => {
-    const { manifest } = extract(false);
+    const { manifest } = extract(true);
     const record = manifest.modules[0];
     assert.ok(record);
 
@@ -69,8 +69,8 @@ describe('rewriting packed references', () => {
     assert.notEqual(record.sha256, record.sha256Packed);
   });
 
-  it('leaves the bytes alone under verbatim, and both hashes agree', () => {
-    const { manifest, outputDir } = extract(true);
+  it('leaves the bytes alone with patching off, and both hashes agree', () => {
+    const { manifest, outputDir } = extract(false);
     const record = manifest.modules[0];
     assert.ok(record);
 
@@ -80,7 +80,7 @@ describe('rewriting packed references', () => {
   });
 
   it('touches nothing that is not JavaScript', () => {
-    const { manifest, outputDir } = extract(false);
+    const { manifest, outputDir } = extract(true);
     assert.equal(readFileSync(join(outputDir, 'assets/logo.txt'), 'utf8'), 'logo');
     assert.equal(manifest.modules[1]?.rewrittenReferences, 0);
   });

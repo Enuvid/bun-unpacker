@@ -1,17 +1,8 @@
 import { createHash } from 'node:crypto';
-import {
-  closeSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-  writeSync,
-} from 'node:fs';
-import { dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { closeSync, mkdirSync, openSync, rmSync, writeFileSync, writeSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import type { BinaryReader } from './binary-reader.js';
-import { BYTECODE_DIRECTORY, MANIFEST_FILE_NAME } from './read-payload.js';
-import { rewriteReferences } from './rewrite.js';
+import { BYTECODE_DIRECTORY, MANIFEST_FILE_NAME } from './read-slice.js';
 import type {
   ExtractedModule,
   ExtractedRegion,
@@ -73,8 +64,14 @@ function toExtractedRegion(region: Region, blobStart: number): ExtractedRegion {
   return { ...region, offsetInFile: blobStart + region.offset, writtenTo: null };
 }
 
-/** Writes every module of a payload below `options.outputDir`. */
-export function writeModules(payload: Payload, options: WriteOptions): Manifest {
+/**
+ * Writes every module below `options.outputDir` and returns the record of what
+ * was written. Patching happens here rather than in a step of its own because
+ * it rewrites references to point at the destination: separating the two would
+ * mean passing the same output directory twice, and a mismatch between them
+ * would produce files that look fine and cannot find each other.
+ */
+export function writeSliceFs(payload: Payload, options: WriteOptions): Manifest {
   const { reader, layout } = payload;
   const outputRoot = resolve(options.outputDir);
   const extracted: ExtractedModule[] = [];
@@ -106,17 +103,13 @@ export function writeModules(payload: Payload, options: WriteOptions): Manifest 
     record.sha256 = record.sha256Packed;
     record.writtenTo = manifestPath(outputRoot, destination);
 
-    if (!options.verbatim && extname(module.path) === '.js') {
-      const result = rewriteReferences(
-        readFileSync(destination, 'utf8'),
-        dirname(destination),
-        outputRoot,
-      );
-      if (result.rewritten > 0) {
-        writeFileSync(destination, result.content);
-        record.sha256 = createHash('sha256').update(result.content).digest('hex');
-        record.rewrittenReferences = result.rewritten;
-      }
+    // A module that went through processSlice carries patched contents; the
+    // packed bytes have already been hashed on their way to disk.
+    if (module.rewrittenReferences > 0) {
+      const patched = module.bytes();
+      writeFileSync(destination, patched);
+      record.sha256 = createHash('sha256').update(patched).digest('hex');
+      record.rewrittenReferences = module.rewrittenReferences;
     }
 
     if (record.sourcemap) {
