@@ -6,3 +6,6 @@ test-build/
 # default and conventional extraction targets, never part of the repository
 out/
 extracted/
+
+# local scratch, not for the repository
+*.local.md
