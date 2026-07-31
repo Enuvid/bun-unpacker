@@ -47,6 +47,17 @@ npx bun-unpacker ./my-app           # extract to ./out
 bunx bun-unpacker ./my-app -o dump  # explicit target
 ```
 
+What comes out runs, because the packed references were patched to point at the
+extracted files:
+
+```sh
+bun ./out/index.js --version
+```
+
+Under bun rather than node: a packed bundle is wrapped in a function the Bun
+runtime knows to call, and it may reach for Bun's own built-ins. Running it
+with node evaluates the wrapper and exits without executing a line.
+
 
 ## Options
 
@@ -126,15 +137,7 @@ sizes and strides no current release emits.
 
 ## Library
 
-Three steps, each doing one thing:
-
-| Step | Does | Returns |
-| :--- | :--- | :--- |
-| `readSlice` | Parses one image of the executable. Touches no disk. | the modules, each able to read its own bytes |
-| `processSlice` | Rewrites the packed references. | a payload carrying the patched contents |
-| `writeSliceFs` | Writes the files. | the manifest describing what was written |
-
-Extracting a binary, which is what the CLI does:
+The CLI is a thin layer over three steps, and you can stop after any of them.
 
 ```ts
 import {
@@ -161,51 +164,94 @@ for (const slice of container.slices) {
 }
 ```
 
-Both `processSlice` and `writeSliceFs` take the output directory, and it has to
-be the same one. References are rewritten relative to where each file will
-land, so two different directories give you files that cannot find each other.
+
+### Opening a binary
+
+`BinaryReader.open(path)` gives random access over the file by descriptor
+rather than reading it into memory, which matters when the file is a quarter of
+a gigabyte and every lookup touches a handful of bytes. It is disposable, so
+`using` closes it at the end of the scope.
+
+`inspectContainer(reader)` identifies the executable format and lists the
+images inside it. Ordinary binaries hold one. A universal Mach-O holds one per
+architecture, each with its own payload, which is why the example loops rather
+than taking the first.
 
 
-### Reading without writing
+### Reading a slice
 
-Stop after `readSlice` when the files are not the point. Every module reads its
-own bytes on demand, so hashing, diffing or piping one somewhere never has to
-go through a directory:
+`readSlice(reader, container, slice)` parses one image and returns its payload.
+Nothing is written, and nothing is read eagerly: each module knows its byte
+range and fetches it when asked.
+
+A module says where it came from and where it would go. `name` is the path the
+packer stored, `/$bunfs/root/src/index.js`. `path` is where it lands relative
+to an output directory, with collisions already resolved. `size` and `kind` are
+the byte count and a readable type such as `Mach-O arm64`, the latter sniffed
+from the first bytes by `describeContents`, which is exported separately for
+running the same guess on a buffer of your own.
+
+Contents come from two methods. `bytes()` returns the whole file. `stream()`
+returns a `Readable` for the ones too large to hold at once, and takes an
+optional region, so `module.stream(module.bytecode)` reads the bytecode cache
+instead of the source. `sourcemap` and `bytecode` are those regions, or null.
 
 ```ts
 import { createHash } from 'node:crypto';
-import { BinaryReader, inspectContainer, readSlice } from 'bun-unpacker';
 
-using reader = BinaryReader.open('/path/to/binary');
-const container = inspectContainer(reader);
-
-for (const slice of container.slices) {
-  for (const module of readSlice(reader, container, slice).modules) {
-    const digest = createHash('sha256').update(module.bytes()).digest('hex');
-    console.log(module.path, module.size, module.kind, digest);
-  }
+for (const module of readSlice(reader, container, slice).modules) {
+  const digest = createHash('sha256').update(module.bytes()).digest('hex');
+  console.log(module.path, module.size, module.kind, digest);
 }
 ```
 
-What a module gives you:
-
-| Field | |
-| :--- | :--- |
-| `name` | the path as the packer stored it, `/$bunfs/root/src/index.js` |
-| `path` | where it lands relative to an output directory, collisions already resolved |
-| `size`, `kind` | byte count, and a human readable type such as `Mach-O arm64` |
-| `bytes()` | the whole file, in memory |
-| `stream()` | a `Readable`, for the ones too large to hold at once |
-| `sourcemap`, `bytecode` | byte ranges or null; pass one to `stream(region)` to read it |
-| `offsetInFile`, `rawEntryHex` | where it sits in the binary, and its raw module table entry |
+`offsetInFile` and `rawEntryHex` are there for looking at the binary itself:
+where the module sits in it, and the raw bytes of its module table entry.
+`toRelativePath(name)` is the function behind `path`, exported for anyone
+reducing a packer path on their own.
 
 
-### Wrapping the CLI
+### Patching and writing
 
-`unpackBinary` and `unpackTargets` run the whole pipeline with the reporting
-the CLI prints, for tools that supply their own way of finding binaries. The
-usage helpers `parseArguments`, `requireOutputDir` and `requireBoolean` are
-exported for the same reason, so a wrapper's own flags validate identically.
+`processSlice(payload, { outputDir, patchPaths })` rewrites the packed
+references so the extracted files can find each other, and returns a payload
+carrying the patched contents. With `patchPaths: false` it returns the payload
+untouched, which is the same as not calling it.
+
+`writeSliceFs(payload, { outputDir, includeBytecode })` writes the files and
+returns the manifest describing what it wrote. `writeManifest(manifest, dir)`
+puts that manifest beside them as `manifest.json`.
+
+Both steps take the output directory and it has to be the same one. References
+are rewritten relative to where each file will land, so two different
+directories give you files that cannot find each other.
+
+
+### When something is wrong
+
+`PayloadNotFoundError` means no packer trailer, so the file was not built with
+`bun build --compile`. `PayloadParseError` means there is a trailer but the
+structures behind it make no sense, and it carries the candidate sizes and
+strides that were tried. `ContainerError` means a universal header declaring
+slices that do not fit inside the file.
+
+
+### Building another CLI on top
+
+`unpackBinary(path, options, streams)` runs the pipeline over one executable,
+every slice of it, printing as it goes. `unpackTargets(paths, options, streams)`
+does the same for several, with a directory per target and the JSON
+aggregation, and returns the process exit code.
+
+The pieces they are built from are exported too, so a wrapper that adds its own
+way of finding binaries does not reimplement the rest or drift from it:
+`parseArguments` for the shared flags, `requireOutputDir`, `requireBoolean` and
+`requireAtMostOneBinary` for validating its own the same way, `asUsageError`
+and `UsageError` for turning a parser complaint into exit code 2, `reportSlice`
+with `formatBytes` and `renderTable` for identical output, `consoleStreams` and
+`describeError` for the printing, and `EXIT_OK`, `EXIT_FAILURE` and
+`EXIT_USAGE` for the codes. `DEFAULT_OUTPUT_DIR`, `MANIFEST_FILE_NAME`,
+`BYTECODE_DIRECTORY` and `TOOL_VERSION` are the names this CLI uses.
 
 
 ## How it works
