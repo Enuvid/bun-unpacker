@@ -168,6 +168,7 @@ describe('universal binaries', () => {
         outputDir: join(workspace, 'unused'),
         write: false,
         includeBytecode: false,
+        verbatim: true,
       }),
     );
 

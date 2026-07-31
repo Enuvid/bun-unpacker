@@ -31,6 +31,7 @@ export interface UnpackOptions {
   outputDir: string;
   listOnly: boolean;
   includeBytecode: boolean;
+  verbatim: boolean;
   json: boolean;
 }
 
@@ -118,6 +119,7 @@ export function unpackBinary(
         outputDir,
         write: !options.listOnly,
         includeBytecode: options.includeBytecode,
+        verbatim: options.verbatim,
       });
       if (!options.listOnly) {
         writeManifest(manifest, outputDir);

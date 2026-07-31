@@ -9,9 +9,12 @@ other embedded asset.
 
 The package contains source code only. It ships no third-party code and no
 extracted artifacts, and it downloads nothing: you point it at a binary that is
-already on your machine, and it copies the contents out byte for byte. Nothing
-is executed, decompiled or deobfuscated; files come out exactly as the packer
-stored them.
+already on your machine. Nothing is executed, decompiled or deobfuscated.
+
+Extracted bundles reach their assets by absolute path into a virtual filesystem
+that exists only inside the compiled binary, so those references are rewritten
+to point at the extracted files. That is what makes the output runnable rather
+than inert. `--verbatim` turns it off.
 
 
 ## Quick start
@@ -45,6 +48,7 @@ bunx bun-unpacker ./my-app -o dump  # explicit target
 | :------------------ | :--------------------------------------------------------------------------------------------- |
 | `-o`, `--out <dir>` | Output directory, default `./out`. A universal binary gets one sub-directory per architecture. |
 | `-l`, `--list`      | Print the module table and write nothing.                                                      |
+| `--verbatim`        | Write every file exactly as it was packed, byte for byte, leaving the virtual filesystem references in place. The output will not run, which is the point: this is the mode for verifying against the binary, or for diffing one build against another. |
 | `--bytecode`        | Also dump the JSC bytecode cache. It is typically several times the size of the source.        |
 | `--json`            | Print the manifest as JSON on stdout.                                                          |
 | `-v`, `--version`   | Version of this tool.                                                                          |
@@ -83,6 +87,11 @@ A universal binary gets one directory per architecture (`out/arm64/`,
 
 Manifest paths always use forward slashes, so a manifest written on Windows
 compares equal to one written anywhere else.
+
+`sha256` is the hash of the file on disk and `sha256Packed` the hash of the
+bytes as they were packed. They differ exactly for the files whose references
+were rewritten, which `rewrittenReferences` counts, so the packed bytes stay
+verifiable against the binary either way.
 
 
 ## Supported containers

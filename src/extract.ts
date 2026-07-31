@@ -1,5 +1,13 @@
 import { createHash } from 'node:crypto';
-import { closeSync, mkdirSync, openSync, rmSync, writeFileSync, writeSync } from 'node:fs';
+import {
+  closeSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+  writeSync,
+} from 'node:fs';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import type { BinaryReader } from './binary-reader.js';
 import { HEADER_PROBE_SIZE, describeContents } from './container.js';
@@ -9,6 +17,7 @@ import {
   readPayloadLayout,
   toRelativePath,
 } from './payload.js';
+import { rewriteReferences } from './rewrite.js';
 import type {
   ContainerInfo,
   ExtractedModule,
@@ -30,6 +39,8 @@ export interface ExtractOptions {
   write: boolean;
   /** Dump the JSC bytecode cache alongside the sources. It is very large. */
   includeBytecode: boolean;
+  /** Leave extracted files exactly as packed, references and all. */
+  verbatim: boolean;
 }
 
 /** Streams a byte range to disk and returns its sha256. */
@@ -141,6 +152,8 @@ export function extractSlice(
       offsetInBlob: module.contents.offset,
       offsetInFile: contentsOffsetInFile,
       sha256: null,
+      sha256Packed: null,
+      rewrittenReferences: 0,
       writtenTo: null,
       sourcemap: module.sourcemap ? toExtractedRegion(module.sourcemap, layout.blobStart) : null,
       bytecode: module.bytecode ? toExtractedRegion(module.bytecode, layout.blobStart) : null,
@@ -149,8 +162,27 @@ export function extractSlice(
 
     if (options.write) {
       const destination = join(outputRoot, relativePath);
-      record.sha256 = copyRegion(reader, contentsOffsetInFile, module.contents.length, destination);
+      record.sha256Packed = copyRegion(
+        reader,
+        contentsOffsetInFile,
+        module.contents.length,
+        destination,
+      );
+      record.sha256 = record.sha256Packed;
       record.writtenTo = manifestPath(outputRoot, destination);
+
+      if (!options.verbatim && extname(relativePath) === '.js') {
+        const result = rewriteReferences(
+          readFileSync(destination, 'utf8'),
+          dirname(destination),
+          outputRoot,
+        );
+        if (result.rewritten > 0) {
+          writeFileSync(destination, result.content);
+          record.sha256 = createHash('sha256').update(result.content).digest('hex');
+          record.rewrittenReferences = result.rewritten;
+        }
+      }
 
       if (record.sourcemap) {
         writeRegion(record.sourcemap, record.sourcemap.length, `${destination}.map`);

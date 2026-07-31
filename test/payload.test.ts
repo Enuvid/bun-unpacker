@@ -166,6 +166,7 @@ describe('extraction', () => {
       outputDir: directory,
       write: true,
       includeBytecode: true,
+      verbatim: true,
     });
   }
 
@@ -239,6 +240,7 @@ describe('extraction', () => {
       outputDir,
       write: false,
       includeBytecode: false,
+      verbatim: true,
     });
 
     assert.equal(manifest.modules.length, SAMPLE_MODULES.length);

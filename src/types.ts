@@ -68,7 +68,12 @@ export interface ExtractedModule {
   size: number;
   offsetInBlob: number;
   offsetInFile: number;
+  /** Of the file on disk, which differs from `sha256Packed` once rewritten. */
   sha256: string | null;
+  /** Of the bytes as they were packed, for verifying against the binary. */
+  sha256Packed: string | null;
+  /** Virtual filesystem references turned into `__dirname` expressions. */
+  rewrittenReferences: number;
   writtenTo: string | null;
   sourcemap: ExtractedRegion | null;
   bytecode: ExtractedRegion | null;

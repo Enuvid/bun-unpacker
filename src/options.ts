@@ -6,6 +6,7 @@ export interface CliOptions {
   outputDir: string;
   listOnly: boolean;
   includeBytecode: boolean;
+  verbatim: boolean;
   json: boolean;
   showHelp: boolean;
   showVersion: boolean;
@@ -23,6 +24,10 @@ options:
   -o, --out <dir>   output directory (default: ./${DEFAULT_OUTPUT_DIR}). A universal binary
                     gets one sub-directory per architecture.
   -l, --list        print the embedded module table, write nothing
+      --verbatim    write the files exactly as packed, leaving the references
+                    to the packer's virtual filesystem in place. Without this,
+                    those references are rewritten to point at the extracted
+                    files, which is what makes the output runnable.
       --bytecode    also dump the JSC bytecode cache (very large, rarely useful)
       --json        print the manifest as JSON on stdout
   -v, --version     print the version of this tool
@@ -69,6 +74,7 @@ export function parseArguments(argv: string[]): CliOptions {
       options: {
         out: { type: 'string', short: 'o' },
         list: { type: 'boolean', short: 'l' },
+        verbatim: { type: 'boolean' },
         bytecode: { type: 'boolean' },
         json: { type: 'boolean' },
         version: { type: 'boolean', short: 'v' },
@@ -85,6 +91,7 @@ export function parseArguments(argv: string[]): CliOptions {
     outputDir: requireOutputDir(values.out),
     listOnly: values.list ?? false,
     includeBytecode: values.bytecode ?? false,
+    verbatim: values.verbatim ?? false,
     json: values.json ?? false,
     showHelp: values.help ?? false,
     showVersion: values.version ?? false,

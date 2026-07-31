@@ -8,6 +8,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.2.0]
+
+
+### Added
+
+- References to the packer's virtual filesystem are rewritten to point at the
+  extracted files, so an extracted bundle can find its assets and its native
+  addons. They become `__dirname` expressions rather than absolute paths, which
+  keeps the output directory movable. `--verbatim` opts out and writes every
+  file exactly as packed.
+- `sha256Packed` and `rewrittenReferences` in the manifest, so the packed bytes
+  remain verifiable against the binary even when the file on disk differs.
+
+
+### Changed
+
+- `UnpackOptions` and `ExtractOptions` gained a required `verbatim` field.
+
+
 ## [0.1.1]
 
 
@@ -39,6 +58,7 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Enuvid/bun-unpacker/releases/tag/v0.1.0
