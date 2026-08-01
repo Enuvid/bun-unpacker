@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { BinaryReader } from '../src/binary-reader.js';
@@ -20,6 +19,7 @@ import {
   peHeader,
   universalHeader,
 } from './helpers/synthetic.js';
+import { createWorkspace } from './helpers/workspace.js';
 
 const CPU_TYPE_I386 = 7;
 const CPU_TYPE_X86_64 = 0x01000007;
@@ -29,7 +29,7 @@ const PE_MACHINE_X86_64 = 0x8664;
 const PE_MACHINE_ARM64 = 0xaa64;
 const UNIVERSAL_SLICE_ALIGNMENT = 0x4000;
 
-const workspace = mkdtempSync(join(tmpdir(), 'bun-unpacker-container-'));
+const workspace = createWorkspace('container');
 after(() => {
   rmSync(workspace, { recursive: true, force: true });
 });

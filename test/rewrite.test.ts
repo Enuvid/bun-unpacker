@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { BinaryReader } from '../src/binary-reader.js';
@@ -12,8 +11,9 @@ import { buildManifest, writeFile } from '../src/write-slice-fs.js';
 import { createRewriter, rewriteReferences } from '../src/rewrite.js';
 import type { Manifest } from '../src/types.js';
 import { buildSyntheticExecutable } from './helpers/synthetic.js';
+import { createWorkspace } from './helpers/workspace.js';
 
-const workspace = mkdtempSync(join(tmpdir(), 'bun-unpacker-rewrite-'));
+const workspace = createWorkspace('rewrite');
 after(() => {
   rmSync(workspace, { recursive: true, force: true });
 });

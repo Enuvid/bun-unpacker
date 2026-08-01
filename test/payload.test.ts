@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { BinaryReader } from '../src/binary-reader.js';
@@ -20,8 +19,9 @@ import {
 } from '../src/payload.js';
 import type { ImageSlice } from '../src/types.js';
 import { SYNTHETIC_ENTRY_SIZE, buildSyntheticExecutable } from './helpers/synthetic.js';
+import { createWorkspace } from './helpers/workspace.js';
 
-const workspace = mkdtempSync(join(tmpdir(), 'bun-unpacker-'));
+const workspace = createWorkspace('payload');
 after(() => {
   rmSync(workspace, { recursive: true, force: true });
 });

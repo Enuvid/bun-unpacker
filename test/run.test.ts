@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, main } from '../src/run.js';
 import type { Manifest } from '../src/types.js';
 import { buildSyntheticExecutable } from './helpers/synthetic.js';
+import { createWorkspace } from './helpers/workspace.js';
 
-const workspace = mkdtempSync(join(tmpdir(), 'bun-unpacker-run-'));
+const workspace = createWorkspace('run');
 after(() => {
   rmSync(workspace, { recursive: true, force: true });
 });

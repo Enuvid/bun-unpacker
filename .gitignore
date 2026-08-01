@@ -9,3 +9,6 @@ extracted/
 
 # local scratch, not for the repository
 *.local.md
+
+# scratch space for tests, never part of the repository
+.tmp/

@@ -3,15 +3,15 @@
 // the extracted bytes and the exit codes. Requires `npm run build` and
 // `npm test` to have run first, since the binary builder lives in test-build/.
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildSyntheticExecutable } from '../test-build/test/helpers/synthetic.js';
+import { createWorkspace } from '../test-build/test/helpers/workspace.js';
 
 const CLI = 'dist/cli.js';
 const MODULE_CONTENTS = 'console.log(1)';
 
-const workspace = mkdtempSync(join(tmpdir(), 'bun-unpacker-smoke-'));
+const workspace = createWorkspace('smoke');
 
 function run(...args) {
   return spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8' });
