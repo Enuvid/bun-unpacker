@@ -166,10 +166,43 @@ describe('rewriting chunk by chunk', () => {
     assert.ok(output.endsWith('y'.repeat(5000)));
   });
 
-  it('keeps binary content byte for byte', () => {
-    const bytes = Buffer.from([0x00, 0xff, 0xfe, 0x80, 0x7f, 0xc3, 0x28]);
+  it('keeps binary content byte for byte across chunks', () => {
+    const pattern = Buffer.from([0x00, 0xff, 0xfe, 0x80, 0x7f, 0xc3, 0x28]);
+    const bytes = Buffer.concat(Array.from({ length: 2048 }, () => pattern));
     const rewriter = createRewriter('/out', '/out');
-    const output = Buffer.concat([rewriter.push(bytes), rewriter.end()]);
-    assert.deepEqual(output, bytes);
+    const parts: Buffer[] = [];
+    for (let offset = 0; offset < bytes.length; offset += 4096) {
+      parts.push(rewriter.push(bytes.subarray(offset, offset + 4096)));
+    }
+    parts.push(rewriter.end());
+    assert.deepEqual(Buffer.concat(parts), bytes);
+  });
+
+  // A chunk boundary must never cut through a string literal: neither half
+  // matches afterwards, so the reference would survive unpatched without
+  // counting as skipped, and the all-or-nothing rule would not fire.
+  it('matches the whole-file result wherever the chunk boundary falls', () => {
+    const references = '["/$bunfs/root/a.js","/$bunfs/root/b.js"]';
+    const chunkSize = 4096;
+
+    // The window brackets the first chunk's safe end, where a pair of adjacent
+    // references can span the boundary with one side of it already emitted.
+    for (let padding = 1960; padding <= 2120; padding += 1) {
+      // The trailing filler keeps the source longer than one chunk, so the
+      // rewriter actually reaches a boundary instead of buffering the lot.
+      const source = `${'x'.repeat(padding)}${references};${'y'.repeat(6000)}`;
+      const rewriter = createRewriter('/out', '/out');
+      const parts: Buffer[] = [];
+      for (let offset = 0; offset < source.length; offset += chunkSize) {
+        parts.push(rewriter.push(Buffer.from(source.slice(offset, offset + chunkSize), 'latin1')));
+      }
+      parts.push(rewriter.end());
+
+      const chunked = Buffer.concat(parts).toString('latin1');
+      const whole = rewriteReferences(source, '/out', '/out');
+      assert.equal(chunked, whole.content, `padding ${String(padding)}`);
+      assert.deepEqual(rewriter.counts(), { rewritten: whole.rewritten, skipped: whole.skipped });
+      assert.ok(!chunked.includes('$bunfs'), `padding ${String(padding)} left a packed path`);
+    }
   });
 });

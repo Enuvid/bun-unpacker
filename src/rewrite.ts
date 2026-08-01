@@ -5,7 +5,14 @@ import { relative, sep } from 'node:path';
  * that exists only inside the compiled binary. Extracted files keep those
  * references, so the bundle looks for its assets somewhere that is not there.
  */
-const VIRTUAL_ROOTS = [/^\/\$bunfs\/root\//, /^B:[\\/]~BUN[\\/]root[\\/]/i];
+const VIRTUAL_ROOTS = [/^\/\$bunfs\/root\//i, /^B:[\\/]~BUN[\\/]root[\\/]/i];
+
+/**
+ * Case-insensitive to match the roots above. A reference the search finds but
+ * the roots reject would count as skipped and, by the all-or-nothing rule,
+ * leave a whole file unpatched.
+ */
+const REFERENCE = /"((?:\/\$bunfs\/root\/|B:[\\/]~BUN[\\/]root[\\/])[^"]+)"/gi;
 
 /**
  * Only a literal in expression position can become an expression. The
@@ -16,7 +23,20 @@ const VIRTUAL_ROOTS = [/^\/\$bunfs\/root\//, /^B:[\\/]~BUN[\\/]root[\\/]/i];
 const EXPRESSION_BEFORE = /[=(,:[?&|+{]\s*$/;
 const KEY_AFTER = /^\s*:/;
 
-const REFERENCE = /"((?:\/\$bunfs\/root\/|B:[\\/]~BUN[\\/]root[\\/])[^"]+)"/gi;
+/**
+ * How much text either side of a match the two checks get to see. Both allow
+ * whitespace between the literal and what decides it, so this also caps the
+ * indentation they can look across: a literal further than this from its
+ * operator is treated as unsafe, and the file is left as packed.
+ */
+const CONTEXT = 64;
+
+/**
+ * Bytes kept back between chunks. A reference can straddle a boundary, and the
+ * checks either side of it need their context, so the tail has to exceed the
+ * longest reference plus that context.
+ */
+const OVERLAP = 2048;
 
 export interface RewriteResult {
   content: string;
@@ -76,16 +96,6 @@ export function rewriteReferences(
   return result.skipped > 0 ? { content, rewritten: 0, skipped: result.skipped } : result;
 }
 
-/**
- * Bytes kept back between chunks. A reference can straddle a boundary, and the
- * checks either side of it need their context, so the tail has to exceed the
- * longest reference plus that context.
- */
-const OVERLAP = 2048;
-
-/** Characters the checks either side of a match need. */
-const CONTEXT = 8;
-
 export interface ChunkRewriter {
   /** Bytes safe to emit; the rest is held back until the next chunk. */
   push: (chunk: Buffer) => Buffer;
@@ -121,18 +131,35 @@ export function createRewriter(fileDirectory: string, outputRoot: string): Chunk
    */
   const safeEnd = (work: string): number => {
     const limit = work.length - OVERLAP;
+    const seen: Array<{ start: number; end: number }> = [];
     REFERENCE.lastIndex = 0;
+
     for (let match = REFERENCE.exec(work); match !== null; match = REFERENCE.exec(work)) {
-      const end = match.index + match[0].length + CONTEXT;
-      if (end > limit) {
+      const start = match.index;
+      const end = start + match[0].length;
+      if (end + CONTEXT > limit) {
         // Leaving lastIndex where it stopped would make the next search on
         // this shared regex start from the middle of a later string.
         REFERENCE.lastIndex = 0;
         // Back off past the context as well: cutting flush against the match
         // would send the characters the check needs before it out with the
         // emitted bytes, and the deferred match would then look unsafe.
-        return Math.max(0, match.index - CONTEXT);
+        let boundary = start - CONTEXT;
+        // That backing off can land inside an earlier match that did fit. A
+        // boundary through a string literal is the one cut this rewriter must
+        // not make: neither half matches afterwards, so the reference survives
+        // unpatched without counting as skipped, and the all-or-nothing rule
+        // never fires. Keep stepping back until the boundary clears them all.
+        for (let index = seen.length - 1; index >= 0; index -= 1) {
+          const earlier = seen[index];
+          if (earlier === undefined || earlier.end <= boundary) {
+            break;
+          }
+          boundary = earlier.start - CONTEXT;
+        }
+        return Math.max(0, boundary);
       }
+      seen.push({ start, end });
     }
     return limit;
   };
