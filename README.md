@@ -157,7 +157,7 @@ table entry gives a packed path: `/$bunfs/root/...` on Linux and macOS,
 `B:/~BUN/root/...` on Windows.
 
 ## ⚠️ Limitations
-от
+
 Patching is a text substitution in JavaScript source. It finds string literals
 with a packed path and turns them into `__dirname` expressions. It only does
 this when the literal is in expression position, which it checks by looking at
