@@ -256,8 +256,9 @@ describe('extraction', () => {
     const module = readSlice(reader, container, slice).files[0];
     assert.ok(module);
 
-    // getReader rather than async iteration: browsers have the first and not
-    // yet the second, and this is the library's portable surface.
+    // getReader rather than async iteration. The stream itself is portable,
+    // but iterating one is newer than the rest of the API and Safari has yet
+    // to ship it, so this is what a consumer can rely on everywhere.
     const chunks: Uint8Array[] = [];
     const readerOfStream = module.stream().getReader();
     for (;;) {
