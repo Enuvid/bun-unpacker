@@ -39,14 +39,14 @@ ELF · x86-64 · payload 179.9 MB at 0x5251008 · 8 files · 52-byte entries
 Extract:
 
 ```sh
-npx bun-unpacker $(which claude)              # extract to ./out
-npx bun-unpacker $(which claude) -o claude    # explicit target
+npx bun-unpacker $(which claude)                       # extract to ./out
+npx bun-unpacker $(which claude) -o claude-unpacked    # explicit target
 ```
 
 Run unpacked JS:
 
 ```console
-$ bun ./out/src/entrypoints/cli.js --version
+$ bun ./claude-unpacked/src/entrypoints/cli.js --version
 2.1.220 (Claude Code)
 ```
 
