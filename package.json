@@ -1,7 +1,7 @@
 {
   "name": "bun-unpacker",
-  "version": "0.8.0",
-  "description": "Decompile and unpack a Bun single-file executable: extract the JavaScript bundle, native addons, sourcemaps and embedded assets from bun build --compile output",
+  "version": "0.8.1",
+  "description": "Decompile and unpack a Bun single-file executable such as Claude Code: extract the JavaScript bundle, native addons, sourcemaps and embedded assets from bun build --compile output",
   "keywords": [
     "bun",
     "decompile",
@@ -11,6 +11,7 @@
     "extract",
     "single-file-executable",
     "bun-build-compile",
+    "claude-code",
     "reverse-engineering",
     "mach-o",
     "elf",

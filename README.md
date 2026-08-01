@@ -43,6 +43,48 @@ bun ./out/index.js --version
 Paths inside JS files are patched during extraction, so the assets can load.
 Pass `--path-patching false` to get every file exactly as packed.
 
+## 🧩 Example: unpacking Claude Code
+
+Claude Code ships as a `bun build --compile` executable, so it comes apart like
+any other. The whole of it:
+
+```console
+$ npx bun-unpacker $(which claude) -o claude
+
+claude  262.3 MB  (/home/you/.local/bin/claude)
+ELF · x86-64 · payload 179.9 MB at 0x5251008 · 8 files · 52-byte entries
+
+  path                             size  kind                           bytecode
+  ---------------------------  --------  -----------------------------  --------
+  src/entrypoints/cli.js        20.6 MB  JS (bun cjs, bytecode-backed)  153.1 MB
+  image-processor.js            2.12 KB  JS (bun cjs, bytecode-backed)  -
+  audio-capture.js              2.12 KB  JS (bun cjs, bytecode-backed)  -
+  image-processor.node          1.40 MB  ELF x86-64                     -
+  chart.umd.min.js             203.6 KB  JavaScript                     -
+  hljsBundle.generated.min.js  962.4 KB  JavaScript                     -
+  mermaid.min.js                3.16 MB  JavaScript                     -
+  audio-capture.node           480.6 KB  ELF x86-64                     -
+
+  total extracted: 26.8 MB
+```
+
+What comes out runs:
+
+```console
+$ bun claude/src/entrypoints/cli.js --version
+2.1.220 (Claude Code)
+```
+
+Tested on **2.1.214**, **2.1.215** and **2.1.220**, across all five builds
+Anthropic ships: `linux-x64`, `darwin-arm64`, `darwin-x64`, `win32-x64` and
+`win32-arm64`. The macOS builds carry 14 packed files rather than 8, the extra
+ones being platform addons.
+
+Bear in mind that the JavaScript is a minified bundle, so this gives you what
+was shipped rather than anything comfortable to read. And Claude Code is
+proprietary, so what comes out is not yours to republish. See
+[scope and licensing](#-scope-and-licensing).
+
 ## ⚙️ Options
 
 | Flag                            | Meaning                                                                                                                                            |
