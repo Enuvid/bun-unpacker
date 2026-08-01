@@ -1,4 +1,3 @@
-import type { Readable } from 'node:stream';
 import type { BinaryReader } from './binary-reader.js';
 
 /** A byte range inside the payload blob. */
@@ -87,8 +86,12 @@ export interface PayloadFile {
   rewrite: { fileDirectory: string; outputRoot: string } | null;
   /** Reads the whole file into memory. */
   bytes: () => Buffer;
-  /** For files too large to hold at once, such as the bytecode cache. */
-  stream: (region?: Region | null) => Readable;
+  /**
+   * For files too large to hold at once, such as the bytecode cache. Reads
+   * through the payload's reader, so that reader has to stay open until the
+   * stream is done.
+   */
+  stream: (region?: Region | null) => ReadableStream<Uint8Array>;
 }
 
 /** Everything one executable image holds, read but not written anywhere. */

@@ -256,9 +256,16 @@ describe('extraction', () => {
     const module = readSlice(reader, container, slice).files[0];
     assert.ok(module);
 
-    const chunks: Buffer[] = [];
-    for await (const chunk of module.stream()) {
-      chunks.push(chunk as Buffer);
+    // getReader rather than async iteration: browsers have the first and not
+    // yet the second, and this is the library's portable surface.
+    const chunks: Uint8Array[] = [];
+    const readerOfStream = module.stream().getReader();
+    for (;;) {
+      const { done, value } = await readerOfStream.read();
+      if (done) {
+        break;
+      }
+      chunks.push(value);
     }
     assert.deepEqual(Buffer.concat(chunks), SAMPLE_MODULES[0]?.contents);
   });

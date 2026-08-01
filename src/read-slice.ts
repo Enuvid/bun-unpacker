@@ -1,6 +1,4 @@
-import { createReadStream } from 'node:fs';
 import { extname } from 'node:path';
-import type { Readable } from 'node:stream';
 import type { BinaryReader } from './binary-reader.js';
 import { HEADER_PROBE_SIZE, describeContents } from './container.js';
 import {
@@ -20,6 +18,13 @@ import type {
 
 export const MANIFEST_FILE_NAME = 'manifest.json';
 export const BYTECODE_DIRECTORY = '_bytecode';
+
+/**
+ * How much a stream reads per pull. Large enough that a 150 MB bytecode cache
+ * does not turn into thousands of round trips, small enough to stay well under
+ * what a caller is willing to hold.
+ */
+const STREAM_CHUNK_SIZE = 1024 * 1024;
 
 /**
  * Two virtual paths can collapse onto one relative path, and a module could be
@@ -61,11 +66,30 @@ export function readSlice(
   const read = (region: Region): Buffer =>
     reader.read(layout.blobStart + region.offset, region.length);
 
-  const open = (region: Region): Readable =>
-    createReadStream(reader.filePath, {
-      start: layout.blobStart + region.offset,
-      end: layout.blobStart + region.offset + region.length - 1,
+  /**
+   * A pull stream over a region, so the consumer decides the pace and nothing
+   * is read ahead of what it asks for. Buffer is a Uint8Array, so the bytes go
+   * out as they were read, without a copy.
+   */
+  const open = (region: Region): ReadableStream<Uint8Array> => {
+    let position = layout.blobStart + region.offset;
+    const end = position + region.length;
+
+    return new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (position >= end) {
+          controller.close();
+          return;
+        }
+        const chunk = reader.read(position, Math.min(STREAM_CHUNK_SIZE, end - position));
+        if (chunk.length === 0) {
+          throw new Error(`unexpected end of file at offset ${String(position)}`);
+        }
+        position += chunk.length;
+        controller.enqueue(chunk);
+      },
     });
+  };
 
   const toFileRegion = (region: Region | null, path: string): FileRegion | null =>
     region === null
