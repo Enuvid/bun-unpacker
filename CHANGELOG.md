@@ -8,6 +8,42 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.6.0]
+
+
+### Fixed
+
+- A chunk boundary could fall inside a reference that had already been scanned,
+  when two references sat within a few characters of each other. Neither half
+  matched afterwards, so the reference stayed packed without counting as
+  skipped, and the all-or-nothing rule never fired: the file reached disk with
+  a mix of patched and packed paths. The boundary now steps back past every
+  match it would cut.
+- Sourcemap and bytecode sidecars are named through the same table as the files
+  themselves, so a packed file called `index.js.map` no longer overwrites, or
+  gets overwritten by, the sourcemap of `index.js`.
+- The reference search was case-insensitive while the roots it fed were not, so
+  an oddly cased path counted as skipped and left a whole file unpatched.
+
+
+### Changed
+
+- `FileRegion` and `ExtractedRegion` carry `path`, where the region lands if it
+  is written out. The manifest gains the same field for sourcemaps and bytecode.
+- Patching looks 64 characters either side of a literal rather than 8, so
+  indented source is patched rather than left as packed.
+- `ManifestBinary` and `BinaryResult` are exported, so the public API no longer
+  needs `ReturnType` to name what it returns.
+- `--list` says it lists the packed files, matching the vocabulary the rest of
+  the tool uses.
+- The readme was rewritten for clarity. The opening says what the tool does and
+  how unpacking differs from decompiling a Bun binary.
+- The package description and keywords cover that wording too.
+- Tests and the smoke script write to `.tmp/` inside the repository instead of
+  the system temp directory, so scratch files stay next to the project and a
+  failed run leaves them where you can look.
+
+
 ## [0.5.2]
 
 
@@ -158,7 +194,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.4.1...v0.5.0
