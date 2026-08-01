@@ -15,6 +15,8 @@ export {
 } from './options.js';
 export type { CliOptions } from './options.js';
 export { PayloadNotFoundError, PayloadParseError, toRelativePath } from './payload.js';
+export { createRewriteStream } from './rewrite.js';
+export type { RewriteStream } from './rewrite.js';
 export {
   EXIT_FAILURE,
   EXIT_OK,

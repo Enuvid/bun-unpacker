@@ -112,6 +112,50 @@ export interface ChunkRewriter {
  * are ASCII, still match. Decoding as UTF-8 would have to handle a character
  * split across a chunk boundary for no gain.
  */
+export interface RewriteStream {
+  /** Pipe a file through this to patch it on the way past. */
+  readonly stream: TransformStream<Uint8Array, Uint8Array>;
+  /** Meaningful once the stream has finished. */
+  readonly counts: () => { rewritten: number; skipped: number };
+}
+
+/**
+ * The chunk rewriter as a transform, so a file can be patched inside a pipe:
+ *
+ * ```ts
+ * const patch = createRewriteStream(fileDirectory, outputRoot);
+ * await file.stream().pipeThrough(patch.stream).pipeTo(destination);
+ * ```
+ *
+ * The transform holds no opinion about chunk size. It keeps back a tail of its
+ * own, so a source that hands over a few kilobytes at a time patches the same
+ * as one handing over megabytes.
+ */
+export function createRewriteStream(fileDirectory: string, outputRoot: string): RewriteStream {
+  const rewriter = createRewriter(fileDirectory, outputRoot);
+
+  const emit = (bytes: Buffer, controller: TransformStreamDefaultController<Uint8Array>): void => {
+    if (bytes.length > 0) {
+      controller.enqueue(bytes);
+    }
+  };
+
+  return {
+    stream: new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        emit(
+          rewriter.push(Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength)),
+          controller,
+        );
+      },
+      flush(controller) {
+        emit(rewriter.end(), controller);
+      },
+    }),
+    counts: rewriter.counts,
+  };
+}
+
 export function createRewriter(fileDirectory: string, outputRoot: string): ChunkRewriter {
   let tail = '';
   let rewritten = 0;

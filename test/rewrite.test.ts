@@ -8,7 +8,7 @@ import { inspectContainer } from '../src/container.js';
 import { processFile } from '../src/process-slice.js';
 import { readSlice } from '../src/read-slice.js';
 import { buildManifest, writeFile } from '../src/write-slice-fs.js';
-import { createRewriter, rewriteReferences } from '../src/rewrite.js';
+import { createRewriteStream, createRewriter, rewriteReferences } from '../src/rewrite.js';
 import type { Manifest } from '../src/types.js';
 import { buildSyntheticExecutable } from './helpers/synthetic.js';
 import { createWorkspace } from './helpers/workspace.js';
@@ -204,5 +204,81 @@ describe('rewriting chunk by chunk', () => {
       assert.deepEqual(rewriter.counts(), { rewritten: whole.rewritten, skipped: whole.skipped });
       assert.ok(!chunked.includes('$bunfs'), `padding ${String(padding)} left a packed path`);
     }
+  });
+});
+
+describe('rewriting through a pipe', () => {
+  /** Collects a stream the portable way, without async iteration. */
+  async function collect(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
+    const chunks: Uint8Array[] = [];
+    const reader = stream.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        return Buffer.concat(chunks);
+      }
+      chunks.push(value);
+    }
+  }
+
+  function sourceOf(text: string, chunkSize: number): ReadableStream<Uint8Array> {
+    let offset = 0;
+    return new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (offset >= text.length) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(Buffer.from(text.slice(offset, offset + chunkSize), 'latin1'));
+        offset += chunkSize;
+      },
+    });
+  }
+
+  it('patches a file on the way through and counts what it did', async () => {
+    const source = `var a=("/$bunfs/root/asset.txt");${'x'.repeat(9000)}`;
+    const patch = createRewriteStream('/out/nested', '/out');
+
+    const output = (await collect(sourceOf(source, 512).pipeThrough(patch.stream))).toString(
+      'latin1',
+    );
+
+    assert.ok(!output.includes('$bunfs'));
+    assert.ok(output.includes('(__dirname+"/../asset.txt")'));
+    assert.deepEqual(patch.counts(), { rewritten: 1, skipped: 0 });
+  });
+
+  // The transform has no say over how much a source hands it at a time, and a
+  // browser stream hands over far less than the writer does.
+  it('gives the same result whatever the source chunk size', async () => {
+    const source = `var a=("/$bunfs/root/a.js"),b=("/$bunfs/root/b.js");${'y'.repeat(7000)}`;
+    const expected = rewriteReferences(source, '/out', '/out').content;
+
+    for (const chunkSize of [1, 7, 512, 4096, 65536]) {
+      const patch = createRewriteStream('/out', '/out');
+      const output = await collect(sourceOf(source, chunkSize).pipeThrough(patch.stream));
+      assert.equal(output.toString('latin1'), expected, `chunk size ${String(chunkSize)}`);
+      assert.equal(patch.counts().rewritten, 2);
+    }
+  });
+
+  it('passes bytes that are not text through untouched', async () => {
+    const bytes = Buffer.concat(
+      Array.from({ length: 1024 }, () => Buffer.from([0x00, 0xff, 0xfe, 0x80, 0x7f, 0xc3, 0x28])),
+    );
+    let offset = 0;
+    const source = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (offset >= bytes.length) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(bytes.subarray(offset, offset + 333));
+        offset += 333;
+      },
+    });
+
+    const patch = createRewriteStream('/out', '/out');
+    assert.deepEqual(await collect(source.pipeThrough(patch.stream)), bytes);
   });
 });
