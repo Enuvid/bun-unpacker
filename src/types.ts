@@ -57,9 +57,14 @@ export interface ModuleTable {
   modules: ModuleEntry[];
 }
 
-/** A region with its absolute position, so a file is self-contained. */
+/**
+ * A region of the binary with its absolute position, so a file carries
+ * everything needed to read it. `path` is where the region lands if it is
+ * written out, resolved against the same names as the files themselves.
+ */
 export interface FileRegion extends Region {
   offsetInFile: number;
+  path: string;
 }
 
 /** One embedded file, with access to its bytes. */
@@ -112,6 +117,7 @@ export interface WriteOptions {
 
 export interface ExtractedRegion extends Region {
   offsetInFile: number;
+  path: string;
   writtenTo: string | null;
 }
 

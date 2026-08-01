@@ -9,6 +9,7 @@ export interface SyntheticModule {
   name: string;
   contents: Buffer;
   bytecode?: Buffer;
+  sourcemap?: Buffer;
 }
 
 export interface SyntheticOptions {
@@ -61,6 +62,15 @@ export function buildSyntheticExecutable(
     chunks.push(module.contents);
     cursor += module.contents.length;
 
+    let sourcemapOffset = 0;
+    let sourcemapLength = 0;
+    if (module.sourcemap !== undefined) {
+      sourcemapOffset = cursor;
+      sourcemapLength = module.sourcemap.length;
+      chunks.push(module.sourcemap);
+      cursor += module.sourcemap.length;
+    }
+
     return {
       nameOffset,
       nameLength: nameBytes.length,
@@ -68,6 +78,8 @@ export function buildSyntheticExecutable(
       contentsLength: module.contents.length,
       bytecodeOffset,
       bytecodeLength,
+      sourcemapOffset,
+      sourcemapLength,
     };
   });
 
@@ -79,7 +91,8 @@ export function buildSyntheticExecutable(
     table.writeUInt32LE(entry.nameLength, base + 4);
     table.writeUInt32LE(entry.contentsOffset, base + 8);
     table.writeUInt32LE(entry.contentsLength, base + 12);
-    // sourcemap pointer stays zeroed at base + 16
+    table.writeUInt32LE(entry.sourcemapOffset, base + 16);
+    table.writeUInt32LE(entry.sourcemapLength, base + 20);
     if (base + 32 <= table.length) {
       table.writeUInt32LE(entry.bytecodeOffset, base + 24);
       table.writeUInt32LE(entry.bytecodeLength, base + 28);

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { closeSync, mkdirSync, openSync, rmSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import type { BinaryReader } from './binary-reader.js';
-import { BYTECODE_DIRECTORY, MANIFEST_FILE_NAME } from './read-slice.js';
+import { MANIFEST_FILE_NAME } from './read-slice.js';
 import { createRewriter } from './rewrite.js';
 import type {
   ExtractedFile,
@@ -66,9 +66,12 @@ function copyRegion(
       emit(rewriter.end());
     }
   } catch (error) {
-    closeSync(output);
-    // Never leave a half-written file that looks like a successful extraction.
-    rmSync(destination, { force: true });
+    try {
+      closeSync(output);
+    } finally {
+      // Never leave a half-written file that looks like a successful extraction.
+      rmSync(destination, { force: true });
+    }
     throw error;
   }
   closeSync(output);
@@ -81,6 +84,9 @@ function hashRegion(reader: BinaryReader, absoluteOffset: number, length: number
   const hash = createHash('sha256');
   for (let copied = 0; copied < length;) {
     const chunk = reader.read(absoluteOffset + copied, Math.min(COPY_CHUNK_SIZE, length - copied));
+    if (chunk.length === 0) {
+      throw new Error('unexpected end of file while hashing packed bytes');
+    }
     hash.update(chunk);
     copied += chunk.length;
   }
@@ -139,12 +145,12 @@ export function writeFile(
   };
 
   if (record.sourcemap) {
-    const sourcemapPath = `${destination}.map`;
+    const sourcemapPath = join(outputRoot, record.sourcemap.path);
     copyRegion(reader, record.sourcemap.offsetInFile, record.sourcemap.length, sourcemapPath);
     record.sourcemap.writtenTo = manifestPath(outputRoot, sourcemapPath);
   }
   if (record.bytecode && options.includeBytecode) {
-    const bytecodePath = join(outputRoot, BYTECODE_DIRECTORY, `${file.path}.jsc`);
+    const bytecodePath = join(outputRoot, record.bytecode.path);
     copyRegion(reader, record.bytecode.offsetInFile, record.bytecode.length, bytecodePath);
     record.bytecode.writtenTo = manifestPath(outputRoot, bytecodePath);
   }

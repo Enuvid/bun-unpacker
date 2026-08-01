@@ -23,8 +23,9 @@ export const BYTECODE_DIRECTORY = '_bytecode';
 
 /**
  * Two virtual paths can collapse onto one relative path, and a module could be
- * named after a file the writer produces itself. Either way the first one wins
- * and the rest take a suffix, so nothing is silently overwritten.
+ * named after a file the writer produces itself, including the sourcemap and
+ * bytecode sidecars. Either way the first one wins and the rest take a suffix,
+ * so nothing is silently overwritten.
  */
 function uniquePath(candidate: string, taken: Set<string>): string {
   if (!taken.has(candidate)) {
@@ -66,8 +67,14 @@ export function readSlice(
       end: layout.blobStart + region.offset + region.length - 1,
     });
 
-  const toFileRegion = (region: Region | null): FileRegion | null =>
-    region === null ? null : { ...region, offsetInFile: layout.blobStart + region.offset };
+  const toFileRegion = (region: Region | null, path: string): FileRegion | null =>
+    region === null
+      ? null
+      : {
+          ...region,
+          offsetInFile: layout.blobStart + region.offset,
+          path: uniquePath(path, taken),
+        };
 
   const files: PayloadFile[] = modules.map((module) => {
     const contentsOffsetInFile = layout.blobStart + module.contents.offset;
@@ -76,15 +83,17 @@ export function readSlice(
       Math.min(HEADER_PROBE_SIZE, module.contents.length),
     );
 
+    const path = uniquePath(toRelativePath(module.name), taken);
+
     return {
       name: module.name,
-      path: uniquePath(toRelativePath(module.name), taken),
+      path,
       kind: describeContents(module.name, probe),
       size: module.contents.length,
       offsetInBlob: module.contents.offset,
       offsetInFile: contentsOffsetInFile,
-      sourcemap: toFileRegion(module.sourcemap),
-      bytecode: toFileRegion(module.bytecode),
+      sourcemap: toFileRegion(module.sourcemap, `${path}.map`),
+      bytecode: toFileRegion(module.bytecode, `${BYTECODE_DIRECTORY}/${path}.jsc`),
       rawEntryHex: module.rawEntryHex,
       rewrite: null,
       bytes: () => read(module.contents),
