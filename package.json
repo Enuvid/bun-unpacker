@@ -1,10 +1,13 @@
 {
   "name": "bun-unpacker",
   "version": "0.5.2",
-  "description": "Extract the files packed inside a Bun single-file executable: the JavaScript bundle, native addons and any other embedded asset",
+  "description": "Decompile and unpack a Bun single-file executable: extract the JavaScript bundle, native addons, sourcemaps and embedded assets from bun build --compile output",
   "keywords": [
     "bun",
+    "decompile",
+    "decompiler",
     "unpacker",
+    "unpack",
     "extract",
     "single-file-executable",
     "bun-build-compile",
