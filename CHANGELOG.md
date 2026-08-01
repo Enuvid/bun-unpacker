@@ -8,6 +8,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.7.0]
+
+
+### Changed
+
+- `PayloadFile.stream()` returns a `ReadableStream<Uint8Array>` rather than a
+  `node:stream` `Readable`. Both platforms have Web Streams, so the reading and
+  patching side of the library no longer depends on Node for its stream type.
+  Code that pipes or iterates a stream keeps working; code that used a
+  `Readable` method such as `pipe()` needs `pipeTo()` instead.
+- A stream reads through the payload's reader rather than opening the file
+  again, so it now needs that reader open until it finishes. This is what
+  `bytes()` always did.
+
+
+### Added
+
+- `createRewriteStream`, path patching as a `TransformStream`, so a caller can
+  patch inside a pipe instead of going through `writeFile`.
+
+
 ## [0.6.0]
 
 
@@ -194,7 +215,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.0...v0.5.1

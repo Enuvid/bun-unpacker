@@ -221,6 +221,10 @@ Nothing is read until it is needed. Each file knows its byte range and reads it
 on demand. The writer does not hold a whole file either: it copies in chunks
 and patches inside each chunk.
 
+Streams are Web Streams rather than `node:stream`, so reading and patching use
+the same API the platform gives a browser. Reading the binary and writing the
+output are still Node, through `node:fs`.
+
 ## Reference
 
 ### `BinaryReader.open`
@@ -333,10 +337,11 @@ module table entry.
 
 Contents come from two methods, and the size decides which one you want.
 `bytes()` reads the file into a `Buffer`, which is fine most of the time.
-`stream()` returns a `Readable` for the ones you would rather not hold at once:
-the bytecode cache of a real binary runs to 150 MB. It takes an optional
-region, so `file.stream(file.bytecode)` reads that cache instead of the source.
-`sourcemap` and `bytecode` are those regions, or null when the file has none.
+`stream()` returns a `ReadableStream<Uint8Array>` for the ones you would rather
+not hold at once: the bytecode cache of a real binary runs to 150 MB. It takes
+an optional region, so `file.stream(file.bytecode)` reads that cache instead of
+the source. `sourcemap` and `bytecode` are those regions, or null when the file
+has none.
 
 ```ts
 import { createHash } from 'node:crypto';
@@ -346,6 +351,10 @@ for (const file of readSlice(reader, container, slice).files) {
   console.log(file.path, file.size, file.kind, digest);
 }
 ```
+
+The stream pulls, so nothing is read until the consumer asks for it. It reads
+through the payload's reader, so keep that reader open until the stream is
+done.
 
 `node:stream/consumers` turns a stream back into a value:
 
@@ -358,6 +367,29 @@ const cache = await buffer(file.stream(file.bytecode));
 
 Doing that on the file itself is the same as `bytes()`, only slower. Use it for
 a region other than the file, or when the stream passes through a transform.
+
+### `createRewriteStream`
+
+```ts
+createRewriteStream(fileDirectory: string, outputRoot: string): RewriteStream;
+```
+
+Path patching as a `TransformStream`, for callers assembling their own pipe
+rather than going through `writeFile`:
+
+```ts
+const patch = createRewriteStream(fileDirectory, outputRoot);
+await file.stream().pipeThrough(patch.stream).pipeTo(destination);
+console.log(patch.counts()); // { rewritten, skipped }
+```
+
+The transform holds no opinion about chunk size, keeping a tail of its own, so
+a source handing over a few kilobytes at a time patches the same as one handing
+over megabytes. `counts()` is meaningful once the stream has finished.
+
+Note that `writeFile` applies the all-or-nothing rule and this does not. A
+`skipped` above zero means the output has a mix of patched and packed paths,
+and it is the caller's job to fall back to the packed bytes.
 
 ### `toRelativePath`
 
