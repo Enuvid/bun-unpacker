@@ -119,16 +119,14 @@ export function unpackBinary(
     try {
       const payload = readSlice(reader, container, slice);
       const write = { outputDir, includeBytecode: options.includeBytecode };
-      // Listing writes nothing, so patching it would rewrite references for a
-      // report that never mentions them.
-      const process = { outputDir, patchPaths: options.patchPaths && !options.listOnly };
+      const processOptions = { outputDir, patchPaths: options.patchPaths };
 
       const manifest = buildManifest(
         payload,
         payload.files.map((file) =>
           options.listOnly
             ? describeFile(file)
-            : writeFile(reader, processFile(file, process), write),
+            : writeFile(reader, processFile(file, processOptions), write),
         ),
       );
       if (!options.listOnly) {

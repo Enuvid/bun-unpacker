@@ -25,7 +25,7 @@ export {
   unpackBinary,
   unpackTargets,
 } from './run.js';
-export type { Streams, UnpackOptions } from './run.js';
+export type { BinaryResult, Streams, UnpackOptions } from './run.js';
 export { TOOL_VERSION } from './version.js';
 export type {
   ContainerInfo,
@@ -39,6 +39,7 @@ export type {
   ExtractedRegion,
   ImageSlice,
   Manifest,
+  ManifestBinary,
   PayloadLayout,
   Region,
 } from './types.js';

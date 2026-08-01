@@ -1,5 +1,6 @@
 import { dirname, extname, join, resolve } from 'node:path';
 import { rewriteReferences } from './rewrite.js';
+import type { PayloadFile, ProcessOptions } from './types.js';
 
 /**
  * Only JavaScript. The substitution turns a string literal into an expression,
@@ -7,17 +8,7 @@ import { rewriteReferences } from './rewrite.js';
  * same check and rewriting it would produce a file that no longer parses.
  */
 const REWRITABLE = new Set(['.js', '.mjs', '.cjs']);
-import type { PayloadFile, ProcessOptions } from './types.js';
 
-/**
- * Rewrites the packer's virtual filesystem references so the extracted files
- * can find each other, and returns a payload whose modules carry the patched
- * contents. Nothing is written here.
- *
- * `outputDir` has to be the same directory the payload is later written to:
- * the rewritten references are relative to where each file will land, so a
- * mismatch produces files that look fine and cannot find each other.
- */
 /**
  * Marks one file whose packed references are to be rewritten. The substitution
  * itself happens when the bytes are read, so nothing is loaded here.

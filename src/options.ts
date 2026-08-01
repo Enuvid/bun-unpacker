@@ -23,7 +23,7 @@ usage:
 options:
   -o, --out <dir>   output directory (default: ./${DEFAULT_OUTPUT_DIR}). A universal binary
                     gets one sub-directory per architecture.
-  -l, --list        print the embedded module table, write nothing
+  -l, --list        list the packed files, write nothing
       --path-patching <true|false>
                     default true. A packed bundle refers to its assets and
                     native addons by absolute paths into the packer's virtual

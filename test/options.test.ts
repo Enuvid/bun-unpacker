@@ -26,10 +26,17 @@ describe('argument parsing', () => {
   });
 
   it('supports both spellings of every flag', () => {
-    assert.equal(parseArguments(['-l']).listOnly, parseArguments(['--list']).listOnly);
-    assert.equal(parseArguments(['-h']).showHelp, parseArguments(['--help']).showHelp);
-    assert.equal(parseArguments(['-v']).showVersion, parseArguments(['--version']).showVersion);
-    assert.equal(parseArguments(['-o', 'x']).outputDir, parseArguments(['--out=x']).outputDir);
+    for (const spelling of ['-l', '--list']) {
+      assert.equal(parseArguments([spelling]).listOnly, true);
+    }
+    for (const spelling of ['-h', '--help']) {
+      assert.equal(parseArguments([spelling]).showHelp, true);
+    }
+    for (const spelling of ['-v', '--version']) {
+      assert.equal(parseArguments([spelling]).showVersion, true);
+    }
+    assert.equal(parseArguments(['-o', 'x']).outputDir, 'x');
+    assert.equal(parseArguments(['--out=x']).outputDir, 'x');
   });
 
   it('takes a path that looks like a flag after --', () => {
