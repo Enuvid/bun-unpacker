@@ -8,17 +8,14 @@ const DEFAULT_SCAN_WINDOW = 8 * 1024 * 1024;
  * touches a handful of bytes near a known offset.
  */
 export class BinaryReader implements Disposable {
-  #fileDescriptor: number;
-  #closed = false;
+  private closed = false;
 
   private constructor(
-    fileDescriptor: number,
+    private readonly fileDescriptor: number,
     readonly filePath: string,
     readonly size: number,
     readonly modifiedAt: Date,
-  ) {
-    this.#fileDescriptor = fileDescriptor;
-  }
+  ) {}
 
   static open(filePath: string): BinaryReader {
     const stats = statSync(filePath);
@@ -29,11 +26,11 @@ export class BinaryReader implements Disposable {
   }
 
   close(): void {
-    if (this.#closed) {
+    if (this.closed) {
       return;
     }
-    this.#closed = true;
-    closeSync(this.#fileDescriptor);
+    this.closed = true;
+    closeSync(this.fileDescriptor);
   }
 
   [Symbol.dispose](): void {
@@ -52,7 +49,7 @@ export class BinaryReader implements Disposable {
     let filled = 0;
     while (filled < length) {
       const bytesRead = readSync(
-        this.#fileDescriptor,
+        this.fileDescriptor,
         buffer,
         filled,
         length - filled,
