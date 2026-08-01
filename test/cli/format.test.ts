@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { formatBytes, renderTable } from '../src/format.js';
+import { formatBytes, renderTable } from '../../src/cli/format.js';
 
 describe('formatBytes', () => {
   it('switches unit at the 1024 boundary', () => {

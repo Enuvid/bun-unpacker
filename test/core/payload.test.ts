@@ -3,10 +3,10 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
-import { BinaryReader } from '../src/binary-reader.js';
-import { inspectContainer } from '../src/container.js';
-import { readSlice } from '../src/read-slice.js';
-import { buildManifest, writeFile } from '../src/write-slice-fs.js';
+import { BinaryReader } from '../../src/core/binary-reader.js';
+import { inspectContainer } from '../../src/core/container.js';
+import { readSlice } from '../../src/core/read-slice.js';
+import { buildManifest, writeFile } from '../../src/core/write-slice-fs.js';
 import {
   PAYLOAD_TRAILER,
   PayloadNotFoundError,
@@ -16,10 +16,10 @@ import {
   readModuleTable,
   readPayloadLayout,
   toRelativePath,
-} from '../src/payload.js';
-import type { ImageSlice } from '../src/types.js';
-import { SYNTHETIC_ENTRY_SIZE, buildSyntheticExecutable } from './helpers/synthetic.js';
-import { createWorkspace } from './helpers/workspace.js';
+} from '../../src/core/payload.js';
+import type { ImageSlice } from '../../src/core/types.js';
+import { SYNTHETIC_ENTRY_SIZE, buildSyntheticExecutable } from '../helpers/synthetic.js';
+import { createWorkspace } from '../helpers/workspace.js';
 
 const workspace = createWorkspace('payload');
 after(() => {

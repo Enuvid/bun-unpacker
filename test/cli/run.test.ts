@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
-import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, main } from '../src/run.js';
-import type { Manifest } from '../src/types.js';
-import { buildSyntheticExecutable } from './helpers/synthetic.js';
-import { createWorkspace } from './helpers/workspace.js';
+import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, main } from '../../src/cli/run.js';
+import type { Manifest } from '../../src/core/types.js';
+import { buildSyntheticExecutable } from '../helpers/synthetic.js';
+import { createWorkspace } from '../helpers/workspace.js';
 
 const workspace = createWorkspace('run');
 after(() => {

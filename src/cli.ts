@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { main } from './run.js';
+import { main } from './cli/run.js';
 
 // `bun-unpacker --json | head` closes stdout early. That is not an
 // error worth a stack trace.

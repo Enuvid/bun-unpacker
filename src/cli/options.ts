@@ -1,5 +1,5 @@
 import { parseArgs } from 'node:util';
-import { TOOL_NAME, TOOL_VERSION } from './version.js';
+import { TOOL_NAME, TOOL_VERSION } from '../version.js';
 
 export interface CliOptions {
   inputPath: string | null;

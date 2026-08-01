@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { DEFAULT_OUTPUT_DIR, UsageError, parseArguments } from '../src/options.js';
+import { DEFAULT_OUTPUT_DIR, UsageError, parseArguments } from '../../src/cli/options.js';
 
 describe('argument parsing', () => {
   it('defaults to no binary and ./out', () => {

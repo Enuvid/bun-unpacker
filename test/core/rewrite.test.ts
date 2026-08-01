@@ -3,15 +3,15 @@ import { createHash } from 'node:crypto';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
-import { BinaryReader } from '../src/binary-reader.js';
-import { inspectContainer } from '../src/container.js';
-import { processFile } from '../src/process-slice.js';
-import { readSlice } from '../src/read-slice.js';
-import { buildManifest, writeFile } from '../src/write-slice-fs.js';
-import { createRewriteStream, createRewriter, rewriteReferences } from '../src/rewrite.js';
-import type { Manifest } from '../src/types.js';
-import { buildSyntheticExecutable } from './helpers/synthetic.js';
-import { createWorkspace } from './helpers/workspace.js';
+import { BinaryReader } from '../../src/core/binary-reader.js';
+import { inspectContainer } from '../../src/core/container.js';
+import { processFile } from '../../src/core/process-slice.js';
+import { readSlice } from '../../src/core/read-slice.js';
+import { buildManifest, writeFile } from '../../src/core/write-slice-fs.js';
+import { createRewriteStream, createRewriter, rewriteReferences } from '../../src/core/rewrite.js';
+import type { Manifest } from '../../src/core/types.js';
+import { buildSyntheticExecutable } from '../helpers/synthetic.js';
+import { createWorkspace } from '../helpers/workspace.js';
 
 const workspace = createWorkspace('rewrite');
 after(() => {

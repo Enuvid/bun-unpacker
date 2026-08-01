@@ -1,14 +1,14 @@
 import { basename, join, relative, resolve } from 'node:path';
-import { BinaryReader } from './binary-reader.js';
-import { inspectContainer } from './container.js';
-import { processFile } from './process-slice.js';
-import { readSlice } from './read-slice.js';
-import { buildManifest, describeFile, writeFile, writeManifest } from './write-slice-fs.js';
+import { BinaryReader } from '../core/binary-reader.js';
+import { inspectContainer } from '../core/container.js';
+import { processFile } from '../core/process-slice.js';
+import { readSlice } from '../core/read-slice.js';
+import { buildManifest, describeFile, writeFile, writeManifest } from '../core/write-slice-fs.js';
 import { formatBytes, renderTable } from './format.js';
 import type { CliOptions } from './options.js';
 import { HELP_TEXT, UsageError, parseArguments } from './options.js';
-import type { Manifest } from './types.js';
-import { TOOL_VERSION } from './version.js';
+import type { Manifest } from '../core/types.js';
+import { TOOL_VERSION } from '../version.js';
 
 export const EXIT_OK = 0;
 export const EXIT_FAILURE = 1;

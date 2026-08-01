@@ -1,47 +1,51 @@
-export { BinaryReader } from './binary-reader.js';
-export { ContainerError, describeContents, inspectContainer } from './container.js';
-export { BYTECODE_DIRECTORY, MANIFEST_FILE_NAME, readSlice } from './read-slice.js';
-export { processFile } from './process-slice.js';
-export { buildManifest, describeFile, writeFile, writeManifest } from './write-slice-fs.js';
-export { formatBytes, renderTable } from './format.js';
+// The core: reading an executable, and writing what it holds back out.
+export { BinaryReader } from './core/binary-reader.js';
+export { ContainerError, describeContents, inspectContainer } from './core/container.js';
+export { PayloadNotFoundError, PayloadParseError, toRelativePath } from './core/payload.js';
+export { BYTECODE_DIRECTORY, MANIFEST_FILE_NAME, readSlice } from './core/read-slice.js';
+export { processFile } from './core/process-slice.js';
+export { createRewriteStream } from './core/rewrite.js';
+export { buildManifest, describeFile, writeFile, writeManifest } from './core/write-slice-fs.js';
+export { TOOL_VERSION } from './version.js';
+
+export type { RewriteStream } from './core/rewrite.js';
+export type {
+  ContainerInfo,
+  ExecutableFormat,
+  ExtractedFile,
+  ExtractedRegion,
+  FileRegion,
+  ImageSlice,
+  Manifest,
+  ManifestBinary,
+  Payload,
+  PayloadFile,
+  PayloadLayout,
+  ProcessOptions,
+  Region,
+  WriteOptions,
+} from './core/types.js';
+
+// What a wrapper needs to put its own front end on the same pipeline: the
+// pipeline itself, the exit codes, the stream handles and the flag validators.
+// The rest of src/cli stays inside, since a wrapper brings its own flags and
+// its own reporting.
 export {
   DEFAULT_OUTPUT_DIR,
   UsageError,
   asUsageError,
-  parseArguments,
   requireAtMostOneBinary,
   requireBoolean,
   requireOutputDir,
-} from './options.js';
-export type { CliOptions } from './options.js';
-export { PayloadNotFoundError, PayloadParseError, toRelativePath } from './payload.js';
-export { createRewriteStream } from './rewrite.js';
-export type { RewriteStream } from './rewrite.js';
+} from './cli/options.js';
 export {
   EXIT_FAILURE,
   EXIT_OK,
   EXIT_USAGE,
   consoleStreams,
   describeError,
-  reportSlice,
   unpackBinary,
   unpackTargets,
-} from './run.js';
-export type { BinaryResult, Streams, UnpackOptions } from './run.js';
-export { TOOL_VERSION } from './version.js';
-export type {
-  ContainerInfo,
-  Payload,
-  PayloadFile,
-  ProcessOptions,
-  WriteOptions,
-  ExecutableFormat,
-  ExtractedFile,
-  FileRegion,
-  ExtractedRegion,
-  ImageSlice,
-  Manifest,
-  ManifestBinary,
-  PayloadLayout,
-  Region,
-} from './types.js';
+} from './cli/run.js';
+
+export type { BinaryResult, Streams, UnpackOptions } from './cli/run.js';

@@ -1,4 +1,4 @@
-import { PAYLOAD_TRAILER } from '../../src/payload.js';
+import { PAYLOAD_TRAILER } from '../../src/core/payload.js';
 
 /** Stride the current Bun releases use. The parser probes for it. */
 export const SYNTHETIC_ENTRY_SIZE = 52;

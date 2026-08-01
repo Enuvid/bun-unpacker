@@ -411,9 +411,10 @@ The whole pipeline with the reporting this CLI prints: one executable and all
 its slices, or several targets with one directory each and a combined JSON
 report. `unpackTargets` returns the process exit code.
 
-The pieces this CLI is built from are exported too: argument parsing with its
-checks, the reporting, the exit codes and the stream handles. So a wrapper can
-add its own way of finding binaries without rebuilding the rest.
+A wrapper putting its own front end on this pipeline also gets the exit codes,
+the stream handles, `UsageError` and the flag validators, so it can find
+binaries its own way without rebuilding the rest. Its own flags and its own
+reporting are its business, so this package keeps those to itself.
 
 ## 📄 Scope and licensing
 
@@ -424,6 +425,11 @@ and this tool neither bundles nor redistributes any of it. It is for unpacking
 a copy you already have, for research or debugging.
 
 ## 🛠️ Development
+
+`src/core` is the extractor: containers, the payload format, reading a slice
+and writing files out. `src/cli` is the command line program built on it,
+along with argument parsing and output formatting. Only the first is the
+library; the second exports just enough for a wrapper to reuse the pipeline.
 
 Requires Node 22 or newer.
 

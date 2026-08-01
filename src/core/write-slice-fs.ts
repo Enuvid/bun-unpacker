@@ -13,7 +13,7 @@ import type {
   PayloadFile,
   WriteOptions,
 } from './types.js';
-import { TOOL_NAME, TOOL_VERSION } from './version.js';
+import { TOOL_NAME, TOOL_VERSION } from '../version.js';
 
 const COPY_CHUNK_SIZE = 4 * 1024 * 1024;
 

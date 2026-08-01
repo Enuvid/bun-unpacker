@@ -8,6 +8,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.8.0]
+
+
+### Removed
+
+- `formatBytes`, `renderTable`, `parseArguments`, `CliOptions` and
+  `reportSlice` are no longer exported. They are how this CLI renders and reads
+  its own flags, not something a caller reaches for, and a wrapper brings its
+  own. Everything a wrapper does use is still exported.
+
+
+### Changed
+
+- Source is split into `src/core`, the extractor, and `src/cli`, the command
+  line program built on it. Tests follow the same split. Nothing moved in the
+  published entry points: `bun-unpacker` and `dist/cli.js` are where they were.
+
+
 ## [0.7.1]
 
 
@@ -224,7 +242,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.2...v0.6.0

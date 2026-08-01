@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
-import { BinaryReader } from '../src/binary-reader.js';
+import { BinaryReader } from '../../src/core/binary-reader.js';
 import {
   ContainerError,
   describeContents,
@@ -10,16 +10,16 @@ import {
   detectFormat,
   inspectContainer,
   universalArchitectures,
-} from '../src/container.js';
-import { readSlice } from '../src/read-slice.js';
+} from '../../src/core/container.js';
+import { readSlice } from '../../src/core/read-slice.js';
 import {
   buildSyntheticExecutable,
   elfHeader,
   machHeader,
   peHeader,
   universalHeader,
-} from './helpers/synthetic.js';
-import { createWorkspace } from './helpers/workspace.js';
+} from '../helpers/synthetic.js';
+import { createWorkspace } from '../helpers/workspace.js';
 
 const CPU_TYPE_I386 = 7;
 const CPU_TYPE_X86_64 = 0x01000007;
