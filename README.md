@@ -8,48 +8,16 @@ JavaScript bundle, native addons, sourcemaps and assets. This is unpacking
 rather than decompiling a Bun binary: the files are embedded whole, so they are
 copied out byte for byte rather than reconstructed from machine code.
 
+It began as research into how Claude Code is packed, and works on any Bun
+executable.
+
 ## 🚀 Quick start
 
-See what is inside:
+Claude Code is the example here, and any other `bun build --compile`
+executable works the same way. See what is inside:
 
 ```console
-$ npx bun-unpacker ./my-app --list
-
-my-app  58.4 MB  (/home/you/build/my-app)
-ELF · x86-64 · payload 41.2 MB at 0x2c41008 · 3 files · 52-byte entries
-
-  path             size  kind                           bytecode
-  -----------  --------  -----------------------------  --------
-  index.js      1.84 MB  JS (bun cjs, bytecode-backed)   12.6 MB
-  sharp.node    1.40 MB  ELF x86-64                      -
-  schema.json   9.11 KB  JSON                            -
-
-  total extracted: 3.25 MB
-```
-
-Extract:
-
-```sh
-npx bun-unpacker ./my-app            # extract to ./out
-npx bun-unpacker ./my-app -o dump    # explicit target
-```
-
-Run unpacked JS:
-
-```sh
-bun ./out/index.js --version
-```
-
-Paths inside JS files are patched during extraction, so the assets can load.
-Pass `--path-patching false` to get every file exactly as packed.
-
-## 🧩 Example: unpacking Claude Code
-
-Claude Code ships as a `bun build --compile` executable, so it comes apart like
-any other. The whole of it:
-
-```console
-$ npx bun-unpacker $(which claude) -o claude
+$ npx bun-unpacker $(which claude) --list
 
 claude  262.3 MB  (/home/you/.local/bin/claude)
 ELF · x86-64 · payload 179.9 MB at 0x5251008 · 8 files · 52-byte entries
@@ -68,22 +36,26 @@ ELF · x86-64 · payload 179.9 MB at 0x5251008 · 8 files · 52-byte entries
   total extracted: 26.8 MB
 ```
 
-What comes out runs:
+Extract:
+
+```sh
+npx bun-unpacker $(which claude)              # extract to ./out
+npx bun-unpacker $(which claude) -o claude    # explicit target
+```
+
+Run unpacked JS:
 
 ```console
-$ bun claude/src/entrypoints/cli.js --version
+$ bun ./out/src/entrypoints/cli.js --version
 2.1.220 (Claude Code)
 ```
 
-Tested on **2.1.214**, **2.1.215** and **2.1.220**, across all five builds
-Anthropic ships: `linux-x64`, `darwin-arm64`, `darwin-x64`, `win32-x64` and
-`win32-arm64`. The macOS builds carry 14 packed files rather than 8, the extra
-ones being platform addons.
+Paths inside JS files are patched during extraction, so the assets can load.
+Pass `--path-patching false` to get every file exactly as packed.
 
-Bear in mind that the JavaScript is a minified bundle, so this gives you what
-was shipped rather than anything comfortable to read. And Claude Code is
-proprietary, so what comes out is not yours to republish. See
-[scope and licensing](#-scope-and-licensing).
+The JavaScript is a minified bundle, so what you get is what was shipped rather
+than anything comfortable to read. It also stays under the license of the
+binary it came from, which for Claude Code means it is not yours to republish.
 
 ## ⚙️ Options
 
@@ -433,6 +405,18 @@ Note that `writeFile` applies the all-or-nothing rule and this does not. A
 `skipped` above zero means the output has a mix of patched and packed paths,
 and it is the caller's job to fall back to the packed bytes.
 
+### Names and version
+
+```ts
+MANIFEST_FILE_NAME: string; // 'manifest.json'
+BYTECODE_DIRECTORY: string; // '_bytecode'
+TOOL_VERSION: string;
+```
+
+The names this package writes, so a caller can look for the manifest or skip
+the bytecode directory without hard-coding either, and the version it reports
+in a manifest.
+
 ### `toRelativePath`
 
 ```ts
@@ -441,22 +425,6 @@ toRelativePath(name: string): string;
 
 Turns a packed path into where the file lands, dropping traversal segments.
 This is the function behind a file's `path`.
-
-### `unpackBinary` and `unpackTargets`
-
-```ts
-unpackBinary(filePath: string, options: UnpackOptions, streams: Streams): BinaryResult;
-unpackTargets(targets: string[], options: UnpackOptions, streams: Streams): number;
-```
-
-The whole pipeline with the reporting this CLI prints: one executable and all
-its slices, or several targets with one directory each and a combined JSON
-report. `unpackTargets` returns the process exit code.
-
-A wrapper putting its own front end on this pipeline also gets the exit codes,
-the stream handles, `UsageError` and the flag validators, so it can find
-binaries its own way without rebuilding the rest. Its own flags and its own
-reporting are its business, so this package keeps those to itself.
 
 ## 📄 Scope and licensing
 
@@ -468,10 +436,10 @@ a copy you already have, for research or debugging.
 
 ## 🛠️ Development
 
-`src/core` is the extractor: containers, the payload format, reading a slice
-and writing files out. `src/cli` is the command line program built on it,
-along with argument parsing and output formatting. Only the first is the
-library; the second exports just enough for a wrapper to reuse the pipeline.
+`src/core` is the extractor: containers, the payload format, reading a slice,
+patching and writing files out. `src/cli` is the command line program built on
+it, with its flags and its output formatting. Only the first is the library.
+Nothing in `src/cli` is exported.
 
 Requires Node 22 or newer.
 

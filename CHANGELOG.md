@@ -8,13 +8,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.9.0]
+
+
+### Removed
+
+- Nothing from `src/cli` is exported any more: `unpackBinary`, `unpackTargets`,
+  the exit codes, `consoleStreams`, `describeError`, `UsageError`,
+  `asUsageError`, the flag validators, `DEFAULT_OUTPUT_DIR`, and the
+  `Streams`, `UnpackOptions` and `BinaryResult` types. They existed for a
+  wrapper package that no longer exists. The library is the extractor, and the
+  command line program is a program.
+
+
+### Changed
+
+- Quick start walks through Claude Code, which is where this started and the
+  executable most people arrive with.
+- The package description is back to describing the tool rather than naming one
+  of its targets.
+
+
+
+
 ## [0.8.2]
 
 
 ### Changed
 
-- `claude-code` is out of the keywords. The description and the readme cover it
-  where it belongs, in prose.
+- `claude-code` is out of the keywords. Prose covers it where it belongs.
 
 
 ## [0.8.1]
@@ -260,7 +282,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.8.2...v0.9.0
 [0.8.2]: https://github.com/Enuvid/bun-unpacker/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.7.1...v0.8.0
