@@ -8,6 +8,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.7.1]
+
+
+### Changed
+
+- The reader uses TypeScript access modifiers rather than hash-private fields,
+  which were the only ones in the codebase. No effect on what the package does.
+
+
 ## [0.7.0]
 
 
@@ -215,7 +224,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/Enuvid/bun-unpacker/compare/v0.5.1...v0.5.2
