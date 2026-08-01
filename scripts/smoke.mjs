@@ -5,6 +5,7 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { MANIFEST_FILE_NAME } from '../dist/index.js';
 import { buildSyntheticExecutable } from '../test-build/test/helpers/synthetic.js';
 import { createWorkspace } from '../test-build/test/helpers/workspace.js';
 
@@ -43,7 +44,7 @@ try {
     'extracted file matches the input byte for byte',
   );
   check(
-    JSON.parse(readFileSync(join(outputDir, 'manifest.json'), 'utf8')).files.length === 2,
+    JSON.parse(readFileSync(join(outputDir, MANIFEST_FILE_NAME), 'utf8')).files.length === 2,
     'manifest lists both files',
   );
 

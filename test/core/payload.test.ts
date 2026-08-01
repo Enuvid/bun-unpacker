@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { BinaryReader } from '../../src/core/binary-reader.js';
 import { inspectContainer } from '../../src/core/container.js';
-import { readSlice } from '../../src/core/read-slice.js';
-import { buildManifest, writeFile } from '../../src/core/write-slice-fs.js';
+import { MANIFEST_FILE_NAME, readSlice } from '../../src/core/read-slice.js';
+import { buildManifest, writeFile, writeManifest } from '../../src/core/write-slice-fs.js';
 import {
   PAYLOAD_TRAILER,
   PayloadNotFoundError,
@@ -219,7 +219,6 @@ describe('extraction', () => {
       [
         { name: '/$bunfs/root/cli.js', contents: Buffer.from('first') },
         { name: '/$bunfs/cli.js', contents: Buffer.from('second') },
-        { name: '/$bunfs/root/manifest.json', contents: Buffer.from('{}') },
       ],
       outputDir,
     );
@@ -228,7 +227,20 @@ describe('extraction', () => {
     assert.equal(new Set(paths).size, paths.length);
     assert.deepEqual(readFileSync(join(outputDir, paths[0] ?? '')), Buffer.from('first'));
     assert.deepEqual(readFileSync(join(outputDir, paths[1] ?? '')), Buffer.from('second'));
-    assert.notEqual(paths[2], 'manifest.json');
+  });
+
+  // A packed file is what the caller came for, so it keeps the name it had and
+  // this tool's own output is what moves out of the way.
+  it('leaves a packed file at its own path and drops the manifest instead', () => {
+    const outputDir = join(workspace, 'manifest-clash');
+    const manifest = extract(
+      [{ name: `/$bunfs/root/${MANIFEST_FILE_NAME}`, contents: Buffer.from('packed') }],
+      outputDir,
+    );
+
+    assert.equal(manifest.files[0]?.path, MANIFEST_FILE_NAME);
+    assert.equal(writeManifest(manifest, outputDir), null);
+    assert.deepEqual(readFileSync(join(outputDir, MANIFEST_FILE_NAME)), Buffer.from('packed'));
   });
 
   it('hands back the bytes without writing anything', () => {

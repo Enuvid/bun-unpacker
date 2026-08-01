@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
+import { MANIFEST_FILE_NAME } from '../../src/core/read-slice.js';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, main } from '../../src/cli/run.js';
 import type { Manifest } from '../../src/core/types.js';
 import { buildSyntheticExecutable } from '../helpers/synthetic.js';
@@ -71,7 +72,9 @@ describe('cli', () => {
     assert.equal(readFileSync(join(outputDir, 'cli.js'), 'utf8'), 'console.log(1)');
     assert.equal(readFileSync(join(outputDir, 'assets/logo.txt'), 'utf8'), 'logo');
 
-    const manifest = JSON.parse(readFileSync(join(outputDir, 'manifest.json'), 'utf8')) as Manifest;
+    const manifest = JSON.parse(
+      readFileSync(join(outputDir, MANIFEST_FILE_NAME), 'utf8'),
+    ) as Manifest;
     assert.equal(manifest.files.length, 2);
     assert.match(result.out, /2 files/);
   });

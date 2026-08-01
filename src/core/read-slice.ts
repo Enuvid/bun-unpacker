@@ -16,7 +16,12 @@ import type {
   Region,
 } from './types.js';
 
-export const MANIFEST_FILE_NAME = 'manifest.json';
+/**
+ * Prefixed and underscored so a packed file is unlikely to be named after it.
+ * If one is, that file wins and no manifest is written: the point of the tool
+ * is what the binary held, not what this adds.
+ */
+export const MANIFEST_FILE_NAME = '__unpack_manifest.json';
 export const BYTECODE_DIRECTORY = '_bytecode';
 
 /**
@@ -27,10 +32,9 @@ export const BYTECODE_DIRECTORY = '_bytecode';
 const STREAM_CHUNK_SIZE = 1024 * 1024;
 
 /**
- * Two virtual paths can collapse onto one relative path, and a module could be
- * named after a file the writer produces itself, including the sourcemap and
- * bytecode sidecars. Either way the first one wins and the rest take a suffix,
- * so nothing is silently overwritten.
+ * Two virtual paths can collapse onto one relative path, since the segments
+ * that would escape the output directory are dropped. The first one keeps the
+ * path and the rest take a suffix, so nothing is silently overwritten.
  */
 function uniquePath(candidate: string, taken: Set<string>): string {
   if (!taken.has(candidate)) {
@@ -61,7 +65,7 @@ export function readSlice(
   const layout = readPayloadLayout(reader, slice, trailerOffset);
   const { entrySize, modules } = readModuleTable(reader, layout);
 
-  const taken = new Set([MANIFEST_FILE_NAME, BYTECODE_DIRECTORY]);
+  const taken = new Set<string>();
 
   const read = (region: Region): Buffer =>
     reader.read(layout.blobStart + region.offset, region.length);
@@ -100,14 +104,20 @@ export function readSlice(
           path: uniquePath(path, taken),
         };
 
-  const files: PayloadFile[] = modules.map((module) => {
+  // Packed files claim their paths before anything else, so a sourcemap or a
+  // bytecode dump never takes a name a packed file was going to land on. The
+  // sidecars are this tool's own output and nothing in a bundle refers to
+  // them, which makes them the ones that can afford to move.
+  const paths = modules.map((module) => uniquePath(toRelativePath(module.name), taken));
+
+  const files: PayloadFile[] = modules.map((module, index) => {
     const contentsOffsetInFile = layout.blobStart + module.contents.offset;
     const probe = reader.read(
       contentsOffsetInFile,
       Math.min(HEADER_PROBE_SIZE, module.contents.length),
     );
 
-    const path = uniquePath(toRelativePath(module.name), taken);
+    const path = paths[index] ?? toRelativePath(module.name);
 
     return {
       name: module.name,

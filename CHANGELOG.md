@@ -8,6 +8,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.10.0]
+
+
+### Fixed
+
+- A packed file could be renamed to make room for something this tool writes
+  itself. A binary packing its own `manifest.json`, or a `.map` beside a file
+  that also carries a sourcemap, had the packed one moved aside. Packed files
+  now claim their paths first and the sidecars are what move.
+- A reference was translated by one rule and the file placed by another, so a
+  packed name holding `..` landed in one place while the patched reference
+  pointed at another file entirely. Both go through the same function now.
+
+
+### Changed
+
+- The manifest is `__unpack_manifest.json` rather than `manifest.json`, which a
+  binary is far less likely to pack. If one does pack that name, the packed
+  file wins and `writeManifest` returns null without writing: what the binary
+  held is never written over.
+
+
 ## [0.9.1]
 
 
@@ -291,7 +313,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.8.2...v0.9.0
 [0.8.2]: https://github.com/Enuvid/bun-unpacker/compare/v0.8.1...v0.8.2

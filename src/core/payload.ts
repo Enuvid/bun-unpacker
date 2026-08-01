@@ -66,7 +66,7 @@ export function looksLikeVirtualPath(value: string): boolean {
 export function toRelativePath(name: string): string {
   let remainder = name;
   for (const prefix of VIRTUAL_ROOT_PREFIXES) {
-    if (remainder.startsWith(prefix)) {
+    if (remainder.toLowerCase().startsWith(prefix.toLowerCase())) {
       remainder = remainder.slice(prefix.length);
       break;
     }

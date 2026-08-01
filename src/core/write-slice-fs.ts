@@ -192,7 +192,16 @@ export function buildManifest(payload: Payload, files: ExtractedFile[]): Manifes
   };
 }
 
-export function writeManifest(manifest: Manifest, outputDir: string): string {
+/**
+ * Writes the manifest beside the files, unless a packed file already landed on
+ * that name. Packed content is what the caller came for, so it is never
+ * written over; the manifest is this tool's own note and can be the one to go.
+ * Returns where it was written, or null when it was not.
+ */
+export function writeManifest(manifest: Manifest, outputDir: string): string | null {
+  if (manifest.files.some((file) => file.path === MANIFEST_FILE_NAME)) {
+    return null;
+  }
   const outputRoot = resolve(outputDir);
   mkdirSync(outputRoot, { recursive: true });
   const destination = join(outputRoot, MANIFEST_FILE_NAME);

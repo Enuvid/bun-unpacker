@@ -72,19 +72,25 @@ binary it came from, which for Claude Code means it is not yours to republish.
 ## 📂 Output
 
 Files keep the paths the packer recorded, so `/$bunfs/root/src/index.js` lands
-at `out/src/index.js`. Traversal segments are dropped. Two files that would
-land on the same path get a numeric suffix instead of overwriting each other.
+at `out/src/index.js`. Traversal segments are dropped.
+
+Packed files claim their paths first, so nothing this tool writes of its own
+can displace one. A sourcemap or bytecode dump that would land on a packed
+file's path takes a numeric suffix instead, and the manifest is skipped
+altogether if a packed file is named after it. Only two packed files that
+reduce to the same path can push each other, and then the second takes the
+suffix.
 
 ```text
 out/
   src/index.js       one output file per packed file
-  manifest.json      every file, with offsets and hashes
+  __unpack_manifest.json   every file, with offsets and hashes
   _bytecode/         only with --bytecode
     src/index.js.jsc
 ```
 
 A universal binary gets one directory per architecture (`out/arm64/`,
-`out/x86-64/`). `manifest.json` describes every file:
+`out/x86-64/`). `__unpack_manifest.json` describes every file:
 
 ```json
 {
@@ -335,10 +341,12 @@ same shape.
 ### `writeManifest`
 
 ```ts
-writeManifest(manifest: Manifest, outputDir: string): string;
+writeManifest(manifest: Manifest, outputDir: string): string | null;
 ```
 
-Writes the manifest next to the files as `manifest.json` and returns the path.
+Writes the manifest next to the files as `__unpack_manifest.json` and returns
+the path. Returns null instead, writing nothing, when a packed file already
+landed on that name: what the binary held is never written over.
 
 ### `PayloadFile`
 
@@ -408,7 +416,7 @@ and it is the caller's job to fall back to the packed bytes.
 ### Names and version
 
 ```ts
-MANIFEST_FILE_NAME: string; // 'manifest.json'
+MANIFEST_FILE_NAME: string; // '__unpack_manifest.json'
 BYTECODE_DIRECTORY: string; // '_bytecode'
 TOOL_VERSION: string;
 ```

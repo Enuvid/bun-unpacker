@@ -88,8 +88,10 @@ describe('writeFile', () => {
     assert.equal(record.sha256Packed, createHash('sha256').update(packed).digest('hex'));
   });
 
-  // A packed file can be named after a sidecar the writer produces itself.
-  it('does not let a sourcemap overwrite a packed file of the same name', () => {
+  // A packed file can be named after a sidecar the writer produces itself. The
+  // packed one keeps the name: nothing in a bundle refers to a sidecar, so the
+  // sidecar is the one that can afford to move.
+  it('keeps a packed file at its name and moves the sourcemap instead', () => {
     const { reader, files, outputDir } = extract([
       { name: '/$bunfs/root/cli.js', contents: Buffer.from('x'), sourcemap: Buffer.from('MAP') },
       { name: '/$bunfs/root/cli.js.map', contents: Buffer.from('PACKED') },
@@ -100,13 +102,13 @@ describe('writeFile', () => {
       writeFile(reader, file, { outputDir, includeBytecode: false }),
     );
 
-    assert.equal(records[1]?.path, 'cli.js-1.map');
-    assert.equal(source.sourcemap?.path, 'cli.js.map');
-    assert.deepEqual(readFileSync(join(outputDir, 'cli.js.map')), Buffer.from('MAP'));
-    assert.deepEqual(readFileSync(join(outputDir, 'cli.js-1.map')), Buffer.from('PACKED'));
+    assert.equal(records[1]?.path, 'cli.js.map');
+    assert.equal(source.sourcemap?.path, 'cli.js-1.map');
+    assert.deepEqual(readFileSync(join(outputDir, 'cli.js.map')), Buffer.from('PACKED'));
+    assert.deepEqual(readFileSync(join(outputDir, 'cli.js-1.map')), Buffer.from('MAP'));
   });
 
-  it('keeps the bytecode sidecar clear of packed names too', () => {
+  it('moves the bytecode dump rather than the packed file', () => {
     const { files } = extract([
       { name: '/$bunfs/root/cli.js', contents: Buffer.from('x'), bytecode: Buffer.from('JSC') },
       { name: '/$bunfs/root/_bytecode/cli.js.jsc', contents: Buffer.from('PACKED') },
@@ -114,8 +116,8 @@ describe('writeFile', () => {
     const [source, clash] = files;
     assert.ok(source && clash);
 
-    assert.equal(source.bytecode?.path, '_bytecode/cli.js.jsc');
-    assert.equal(clash.path, '_bytecode/cli.js-1.jsc');
+    assert.equal(clash.path, '_bytecode/cli.js.jsc');
+    assert.equal(source.bytecode?.path, '_bytecode/cli.js-1.jsc');
   });
 });
 

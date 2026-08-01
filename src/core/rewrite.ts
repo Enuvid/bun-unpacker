@@ -1,4 +1,5 @@
 import { relative, sep } from 'node:path';
+import { toRelativePath } from './payload.js';
 
 /**
  * The packer records asset paths as absolute paths into a virtual filesystem
@@ -46,10 +47,16 @@ export interface RewriteResult {
   skipped: number;
 }
 
+/**
+ * Where the file a reference names was written. This defers to the same
+ * function that placed it, so the two cannot disagree: computing the path here
+ * a second time is how a reference ends up pointing at a file that is not the
+ * one it names.
+ */
 function toAssetPath(reference: string): string | null {
   for (const root of VIRTUAL_ROOTS) {
     if (root.test(reference)) {
-      return reference.replace(root, '').replace(/\\/g, '/');
+      return toRelativePath(reference);
     }
   }
   return null;
