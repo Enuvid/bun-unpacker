@@ -9,6 +9,7 @@ import { buildSyntheticExecutable } from '../test-build/test/helpers/synthetic.j
 import { createWorkspace } from '../test-build/test/helpers/workspace.js';
 
 const CLI = 'dist/cli.js';
+const PACKED_REFERENCE = 'var asset=("/$bunfs/root/logo.txt");';
 const MODULE_CONTENTS = 'console.log(1)';
 
 const workspace = createWorkspace('smoke');
@@ -30,6 +31,7 @@ try {
     binary,
     buildSyntheticExecutable([
       { name: '/$bunfs/root/cli.js', contents: Buffer.from(MODULE_CONTENTS) },
+      { name: '/$bunfs/root/asset-user.js', contents: Buffer.from(PACKED_REFERENCE) },
     ]).bytes,
   );
 
@@ -41,8 +43,19 @@ try {
     'extracted file matches the input byte for byte',
   );
   check(
-    JSON.parse(readFileSync(join(outputDir, 'manifest.json'), 'utf8')).files.length === 1,
-    'manifest lists the file',
+    JSON.parse(readFileSync(join(outputDir, 'manifest.json'), 'utf8')).files.length === 2,
+    'manifest lists both files',
+  );
+
+  const patched = readFileSync(join(outputDir, 'asset-user.js'), 'utf8');
+  check(!patched.includes('$bunfs'), 'path patching leaves no packed reference behind');
+  check(patched.includes('__dirname'), 'path patching points the reference at the output');
+
+  const verbatimDir = join(workspace, 'verbatim');
+  run(binary, '--out', verbatimDir, '--path-patching', 'false');
+  check(
+    readFileSync(join(verbatimDir, 'asset-user.js'), 'utf8') === PACKED_REFERENCE,
+    '--path-patching false writes the file exactly as packed',
   );
 
   const notABinary = join(workspace, 'plain-file');
