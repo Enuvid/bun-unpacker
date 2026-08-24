@@ -9,6 +9,7 @@ import {
   detectArchitecture,
   detectFormat,
   inspectContainer,
+  isJavaScript,
   universalArchitectures,
 } from '../../src/core/container.js';
 import { readSlice } from '../../src/core/read-slice.js';
@@ -134,6 +135,33 @@ describe('embedded content descriptions', () => {
     assert.equal(describeContents('archive.bin', Buffer.from('504b0304', 'hex')), 'zip archive');
     assert.equal(describeContents('data.json', Buffer.from('{"a":1}')), 'JSON');
     assert.equal(describeContents('mystery.bin', Buffer.from('????')), 'data');
+  });
+});
+
+describe('recognising JavaScript', () => {
+  it('answers from the kind, whatever the file is called', () => {
+    for (const kind of ['JavaScript', 'JS (bun)', 'JS (bun cjs, bytecode-backed)']) {
+      assert.equal(isJavaScript(kind, 'cli'), true, kind);
+    }
+    for (const kind of ['JSON', 'data', 'native addon', 'WebAssembly', 'text']) {
+      assert.equal(isJavaScript(kind, 'config'), false, kind);
+    }
+  });
+
+  it('still takes the extension as a second opinion', () => {
+    for (const name of ['bundle.js', 'bundle.MJS', 'bundle.cjs']) {
+      assert.equal(isJavaScript('data', name), true, name);
+    }
+    // Both of those kinds rest on a two-byte magic number, which is two
+    // characters a minified bundle could plausibly open with.
+    assert.equal(
+      isJavaScript(describeContents('bundle.js', Buffer.from('PKa=1')), 'bundle.js'),
+      true,
+    );
+    assert.equal(
+      isJavaScript(describeContents('bundle.js', Buffer.from('MZa=1')), 'bundle.js'),
+      true,
+    );
   });
 });
 

@@ -8,6 +8,45 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.11.0]
+
+
+### Fixed
+
+- A packed file was patched or left alone according to its extension, while the
+  kind reported for it had already been read from its contents. Packed names
+  are whatever the build chose, so a bundle whose entry point is stored as
+  `cli` rather than `cli.js` had every virtual filesystem reference left as
+  packed, and the extracted bundle failed on first asset use with nothing in
+  the output to say why. Claude Code 2.1.241 renamed exactly that way, which
+  cost its main module all nine of its references. Content and name now settle
+  it together, and the kind is what leads.
+
+
+### Added
+
+- `pathPatching` and `skippedReferences` in each manifest file record. A
+  `rewrittenReferences` of zero used to stand for three different things: a
+  file with nothing to patch, a file patching does not apply to, and a file
+  whose patch was reverted because one path could not be placed safely. Telling
+  them apart meant extracting a second time and running the substitution by
+  hand.
+- `options` in the manifest, so a manifest says what it was produced under.
+  Without it every file in a `--path-patching false` run reads exactly like a
+  payload holding no JavaScript.
+- A warning on stderr when the all-or-nothing rule writes a file exactly as
+  packed. That case leaves a bundle that looks extracted and does not work, and
+  it used to pass in silence.
+- `isJavaScript`, the rule deciding which files are eligible for path
+  patching, beside the `describeContents` whose answer it reads.
+
+
+### Changed
+
+- `buildManifest` takes the options the records were produced under as a third
+  argument.
+
+
 ## [0.10.1]
 
 
@@ -321,7 +360,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.9.0...v0.9.1

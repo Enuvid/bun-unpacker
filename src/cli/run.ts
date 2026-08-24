@@ -90,6 +90,24 @@ export function reportSlice(
   streams.out('');
 }
 
+/**
+ * The one outcome that leaves a bundle looking extracted and not working. The
+ * manifest records it either way; this is what puts it in front of somebody.
+ */
+export function reportReverts(manifest: Manifest, streams: Streams): void {
+  for (const file of manifest.files) {
+    if (file.pathPatching !== 'reverted') {
+      continue;
+    }
+    const count = file.skippedReferences;
+    streams.err(
+      `warning: ${String(count)} reference${count === 1 ? '' : 's'} in ${file.path} could not be ` +
+        'placed safely, so the file was written exactly as packed and its paths still point ' +
+        'inside the binary',
+    );
+  }
+}
+
 export interface BinaryResult {
   manifests: Manifest[];
   failures: string[];
@@ -128,6 +146,7 @@ export function unpackBinary(
             ? describeFile(file)
             : writeFile(reader, processFile(file, processOptions), write),
         ),
+        { patchPaths: options.patchPaths, includeBytecode: options.includeBytecode },
       );
       if (!options.listOnly) {
         writeManifest(manifest, outputDir);
@@ -135,6 +154,9 @@ export function unpackBinary(
       if (!options.json) {
         reportSlice(manifest, options, outputDir, streams);
       }
+      // After the report rather than through the middle of it, and on stderr,
+      // so it survives `--json` and a redirected stdout alike.
+      reportReverts(manifest, streams);
       manifests.push(manifest);
     } catch (error) {
       failures.push(`${slice.architecture ?? 'slice'}: ${describeError(error)}`);

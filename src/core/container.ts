@@ -223,10 +223,21 @@ export function inspectContainer(reader: BinaryReader): ContainerInfo {
   };
 }
 
+const KIND_JAVASCRIPT = 'JavaScript';
+
+/**
+ * The kinds that come from the markers the packer leaves at the top of a
+ * module it compiled itself. Those markers carry further than a name does: the
+ * entry point is stored under whatever the build called it, which is as often
+ * `cli` as `cli.js`.
+ */
+const KIND_BUN_JS = 'JS (bun)';
+const KIND_BUN_CJS_BYTECODE = 'JS (bun cjs, bytecode-backed)';
+
 const EXTENSION_KINDS: Readonly<Record<string, string>> = {
-  '.js': 'JavaScript',
-  '.mjs': 'JavaScript',
-  '.cjs': 'JavaScript',
+  '.js': KIND_JAVASCRIPT,
+  '.mjs': KIND_JAVASCRIPT,
+  '.cjs': KIND_JAVASCRIPT,
   '.json': 'JSON',
   '.wasm': 'WebAssembly',
   '.node': 'native addon',
@@ -237,6 +248,12 @@ const EXTENSION_KINDS: Readonly<Record<string, string>> = {
 };
 
 const BUN_BYTECODE_MARKER = '// @bun @bytecode @bun-cjs\n';
+
+const JAVASCRIPT_KINDS: ReadonlySet<string> = new Set([
+  KIND_JAVASCRIPT,
+  KIND_BUN_JS,
+  KIND_BUN_CJS_BYTECODE,
+]);
 
 export function describeContents(fileName: string, header: Buffer): string {
   const format = detectFormat(header);
@@ -257,10 +274,30 @@ export function describeContents(fileName: string, header: Buffer): string {
     return 'zip archive';
   }
   if (header.toString('utf8', 0, BUN_BYTECODE_MARKER.length) === BUN_BYTECODE_MARKER) {
-    return 'JS (bun cjs, bytecode-backed)';
+    return KIND_BUN_CJS_BYTECODE;
   }
   if (header.toString('utf8', 0, 5) === '// @b') {
-    return 'JS (bun)';
+    return KIND_BUN_JS;
   }
   return EXTENSION_KINDS[extname(fileName).toLowerCase()] ?? 'data';
+}
+
+/**
+ * Whether a file holds JavaScript, answered from the kind `describeContents`
+ * arrived at rather than worked out a second time. Deciding it again from the
+ * name is how a caller comes to disagree with the kind it was given, and the
+ * name is the weaker of the two: packed names are whatever the build chose, so
+ * an entry point stored as `cli` is as much JavaScript as one stored as
+ * `cli.js` and only its contents say so.
+ *
+ * The name still gets a say, because two of the kinds that would outrank it
+ * rest on a two-byte magic number. A bundle opening `MZ` or `PK` is an
+ * executable or a zip by that measure and JavaScript by its extension, and on
+ * those odds the extension is the better witness.
+ */
+export function isJavaScript(kind: string, fileName: string): boolean {
+  return (
+    JAVASCRIPT_KINDS.has(kind) ||
+    EXTENSION_KINDS[extname(fileName).toLowerCase()] === KIND_JAVASCRIPT
+  );
 }

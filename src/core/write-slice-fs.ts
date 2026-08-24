@@ -9,6 +9,8 @@ import type {
   ExtractedRegion,
   FileRegion,
   Manifest,
+  ManifestOptions,
+  PathPatching,
   Payload,
   PayloadFile,
   WriteOptions,
@@ -106,6 +108,18 @@ function toExtractedRegion(region: FileRegion): ExtractedRegion {
 }
 
 /**
+ * Which of the three outcomes a file met. Nothing else can reconstruct it: by
+ * the time the record is built, a reverted file and a file with nothing to
+ * patch both show zero rewritten references.
+ */
+function outcomeOf(rewrite: PayloadFile['rewrite'], skipped: number): PathPatching {
+  if (rewrite === null) {
+    return 'not-applicable';
+  }
+  return skipped > 0 ? 'reverted' : 'applied';
+}
+
+/**
  * Writes one file below `options.outputDir` and returns the record of it. The
  * reader is the one the payload was read through, since the bytes still come
  * from the binary rather than from memory.
@@ -119,11 +133,14 @@ export function writeFile(
   const destination = join(outputRoot, file.path);
 
   let copied = copyRegion(reader, file.offsetInFile, file.size, destination, file.rewrite);
+  // The second copy runs without a rewriter and so reports nothing skipped.
+  // Keeping the first count is the only record that the revert happened.
+  const skipped = copied.skipped;
 
   // All or nothing: one reference that could not be placed safely would leave a
   // file with a mix of working and broken paths. Rare enough to pay for with a
   // second copy rather than by buffering every file to find out.
-  if (copied.skipped > 0) {
+  if (skipped > 0) {
     copied = copyRegion(reader, file.offsetInFile, file.size, destination);
   }
 
@@ -135,6 +152,8 @@ export function writeFile(
     offsetInBlob: file.offsetInBlob,
     offsetInFile: file.offsetInFile,
     rewrittenReferences: copied.rewritten,
+    pathPatching: outcomeOf(file.rewrite, skipped),
+    skippedReferences: skipped,
     sha256: copied.sha256,
     sha256Packed:
       copied.rewritten > 0 ? hashRegion(reader, file.offsetInFile, file.size) : copied.sha256,
@@ -168,6 +187,8 @@ export function describeFile(file: PayloadFile): ExtractedFile {
     offsetInBlob: file.offsetInBlob,
     offsetInFile: file.offsetInFile,
     rewrittenReferences: 0,
+    pathPatching: 'not-applicable',
+    skippedReferences: 0,
     sha256: null,
     sha256Packed: null,
     writtenTo: null,
@@ -177,12 +198,23 @@ export function describeFile(file: PayloadFile): ExtractedFile {
   };
 }
 
-/** Gathers records into a manifest, with the binary and payload they came from. */
-export function buildManifest(payload: Payload, files: ExtractedFile[]): Manifest {
+/**
+ * Gathers records into a manifest, with the binary and payload they came from.
+ *
+ * `options` are the ones the records were produced under. They are not taken
+ * from the records because they cannot be: a run with patching turned off
+ * looks exactly like a payload holding no JavaScript.
+ */
+export function buildManifest(
+  payload: Payload,
+  files: ExtractedFile[],
+  options: ManifestOptions,
+): Manifest {
   return {
     tool: TOOL_NAME,
     toolVersion: TOOL_VERSION,
     binary: payload.binary,
+    options,
     payload: {
       ...payload.layout,
       moduleEntrySize: payload.moduleEntrySize,

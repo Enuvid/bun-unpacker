@@ -97,4 +97,48 @@ describe('cli', () => {
     assert.equal(manifests.length, 1);
     assert.equal(manifests[0]?.files.length, 2);
   });
+
+  it('records the options the manifest was produced under', () => {
+    const outputDir = join(workspace, 'options-out');
+    run(binaryPath, '--path-patching', 'false', '--out', outputDir);
+
+    const manifest = JSON.parse(
+      readFileSync(join(outputDir, MANIFEST_FILE_NAME), 'utf8'),
+    ) as Manifest;
+    assert.deepEqual(manifest.options, { patchPaths: false, includeBytecode: false });
+  });
+});
+
+// Silence here is what makes the all-or-nothing rule expensive: the extraction
+// succeeds, the file is on disk, and only its runtime failure says otherwise.
+describe('cli warnings', () => {
+  const revertingBinary = join(workspace, 'reverting-binary');
+  writeFileSync(
+    revertingBinary,
+    buildSyntheticExecutable([
+      { name: '/$bunfs/root/cli.js', contents: Buffer.from('var m={"/$bunfs/root/a.js":1};') },
+    ]).bytes,
+  );
+
+  it('warns on stderr when a file is written as packed after all', () => {
+    const result = run(revertingBinary, '--out', join(workspace, 'reverted-out'));
+
+    assert.equal(result.code, EXIT_OK, 'a revert is a warning, not a failure');
+    assert.match(result.err, /1 reference in cli\.js could not be placed safely/);
+    assert.doesNotMatch(result.out, /could not be placed/, 'warnings belong on stderr');
+  });
+
+  it('warns under --json too, without disturbing the JSON on stdout', () => {
+    const result = run(revertingBinary, '--json', '--out', join(workspace, 'reverted-json'));
+
+    assert.match(result.err, /could not be placed safely/);
+    const manifests = JSON.parse(result.out) as Manifest[];
+    assert.equal(manifests[0]?.files[0]?.pathPatching, 'reverted');
+    assert.equal(manifests[0]?.files[0]?.skippedReferences, 1);
+  });
+
+  it('says nothing when every file was patched or had nothing to patch', () => {
+    const result = run(binaryPath, '--out', join(workspace, 'quiet-out'));
+    assert.equal(result.err, '');
+  });
 });

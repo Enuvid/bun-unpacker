@@ -100,6 +100,9 @@ A universal binary gets one directory per architecture (`out/arm64/`,
   "size": 1929216,
   "offsetInFile": 46859528,
   "sha256": "8f1dded3...",
+  "rewrittenReferences": 9,
+  "pathPatching": "applied",
+  "skippedReferences": 0,
   "bytecode": { "offset": 120, "length": 13221888, "offsetInFile": 6315136 }
 }
 ```
@@ -111,6 +114,20 @@ matches one written anywhere else.
 bytes as they were packed. They differ only for files whose paths were patched,
 which `rewrittenReferences` counts. So you can always check the output against
 the binary.
+
+`pathPatching` says why that count is what it is, which a count of zero cannot:
+
+| `pathPatching`   | Meaning                                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| `applied`        | The file was patched. `rewrittenReferences` is what it found, which may be zero if there was nothing to find. |
+| `not-applicable` | The file holds no JavaScript, or the run had patching turned off. The manifest's `options` tells them apart.  |
+| `reverted`       | Patching ran and was undone, because `skippedReferences` paths could not be placed safely. Written as packed. |
+
+The manifest records the `options` it was produced under for the same reason,
+since without them a run with `--path-patching false` reads exactly like a
+payload holding no JavaScript. A revert is also reported on stderr as it
+happens: it leaves a bundle that looks extracted and does not work, which is
+not something to find out from a field.
 
 ## 💾 Supported containers
 
@@ -219,7 +236,10 @@ for (const slice of container.slices) {
       includeBytecode: false,
     }),
   );
-  writeManifest(buildManifest(payload, written), outputDir);
+  writeManifest(
+    buildManifest(payload, written, { patchPaths: true, includeBytecode: false }),
+    outputDir,
+  );
 }
 ```
 
@@ -281,6 +301,19 @@ The readable type of a packed file from its first bytes: `Mach-O arm64`,
 fills the `kind` field. It is exported so you can run the same detection on a
 buffer of your own.
 
+### `isJavaScript`
+
+```ts
+isJavaScript(kind: string, fileName: string): boolean;
+```
+
+Whether a file holds JavaScript, and so whether `processFile` will patch it.
+It reads the `kind` above rather than working the answer out again from the
+name, because a packed name is whatever the build chose: an entry point stored
+as `cli` is as much JavaScript as one stored as `cli.js`. The name is still
+consulted as a second opinion, since a couple of the kinds that outrank it rest
+on a two-byte magic number.
+
 ### `readSlice`
 
 ```ts
@@ -331,12 +364,14 @@ the destination null.
 ### `buildManifest`
 
 ```ts
-buildManifest(payload: Payload, files: ExtractedFile[]): Manifest;
+buildManifest(payload: Payload, files: ExtractedFile[], options: ManifestOptions): Manifest;
 ```
 
 Collects records into a manifest, along with the binary and payload they came
 from. It takes whatever the caller gathered, so listing and writing give the
-same shape.
+same shape. `options` are the ones the records were produced under: they are
+not read back off the records because they cannot be, a run with patching off
+being indistinguishable from a payload with no JavaScript in it.
 
 ### `writeManifest`
 

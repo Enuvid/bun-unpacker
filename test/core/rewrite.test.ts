@@ -10,7 +10,7 @@ import { readSlice } from '../../src/core/read-slice.js';
 import { buildManifest, writeFile } from '../../src/core/write-slice-fs.js';
 import { createRewriteStream, createRewriter, rewriteReferences } from '../../src/core/rewrite.js';
 import type { Manifest } from '../../src/core/types.js';
-import { buildSyntheticExecutable } from '../helpers/synthetic.js';
+import { type SyntheticModule, buildSyntheticExecutable } from '../helpers/synthetic.js';
 import { createWorkspace } from '../helpers/workspace.js';
 
 const workspace = createWorkspace('rewrite');
@@ -20,17 +20,16 @@ after(() => {
 
 const BUNDLE_SOURCE = 'var asset="/$bunfs/root/assets/logo.txt";module.exports=asset;';
 
+interface Extraction {
+  manifest: Manifest;
+  outputDir: string;
+}
+
 let counter = 0;
-function extract(patchPaths: boolean): { manifest: Manifest; outputDir: string } {
+function extractModules(modules: SyntheticModule[], patchPaths: boolean): Extraction {
   counter += 1;
   const binary = join(workspace, `binary-${counter}`);
-  writeFileSync(
-    binary,
-    buildSyntheticExecutable([
-      { name: '/$bunfs/root/src/index.js', contents: Buffer.from(BUNDLE_SOURCE) },
-      { name: '/$bunfs/root/assets/logo.txt', contents: Buffer.from('logo') },
-    ]).bytes,
-  );
+  writeFileSync(binary, buildSyntheticExecutable(modules).bytes);
 
   const outputDir = join(workspace, `out-${counter}`);
   using reader = BinaryReader.open(binary);
@@ -49,10 +48,21 @@ function extract(patchPaths: boolean): { manifest: Manifest; outputDir: string }
             includeBytecode: false,
           }),
         ),
+        { patchPaths, includeBytecode: false },
       );
     })(),
     outputDir,
   };
+}
+
+function extract(patchPaths: boolean): Extraction {
+  return extractModules(
+    [
+      { name: '/$bunfs/root/src/index.js', contents: Buffer.from(BUNDLE_SOURCE) },
+      { name: '/$bunfs/root/assets/logo.txt', contents: Buffer.from('logo') },
+    ],
+    patchPaths,
+  );
 }
 
 describe('rewriting packed references', () => {
@@ -102,6 +112,109 @@ describe('rewriting packed references', () => {
     const { manifest, outputDir } = extract(true);
     assert.equal(readFileSync(join(outputDir, 'assets/logo.txt'), 'utf8'), 'logo');
     assert.equal(manifest.files[1]?.rewrittenReferences, 0);
+  });
+});
+
+describe('choosing what to patch', () => {
+  // A packed name is whatever the build called it, so it cannot be what
+  // decides this. Claude Code renamed its entry point from
+  // `src/entrypoints/cli.js` to `cli` between two releases, and every
+  // reference in the one module that mattered silently stopped being patched.
+  it('patches a bun module stored under a name with no extension', () => {
+    const { manifest, outputDir } = extractModules(
+      [
+        {
+          name: '/$bunfs/root/cli',
+          contents: Buffer.from('// @bun @bytecode @bun-cjs\nvar a=("/$bunfs/root/asset.js");'),
+        },
+        { name: '/$bunfs/root/asset.js', contents: Buffer.from('module.exports=1;') },
+      ],
+      true,
+    );
+
+    const record = manifest.files[0];
+    assert.equal(record?.kind, 'JS (bun cjs, bytecode-backed)', 'the kind was known all along');
+    assert.equal(record?.rewrittenReferences, 1);
+
+    const written = readFileSync(join(outputDir, 'cli'), 'utf8');
+    assert.match(written, /\(__dirname\+"\/\.\/asset\.js"\)/);
+    assert.doesNotMatch(written, /\$bunfs/);
+  });
+
+  // The other half of the same rule: a name cannot make something JavaScript
+  // either. Rewriting a value here would leave a file that no longer parses,
+  // and the reference sits in a position the position checks let through.
+  it('leaves JSON alone, named as JSON or not named at all', () => {
+    const json = '{"asset":"/$bunfs/root/asset.js"}';
+    const { manifest, outputDir } = extractModules(
+      [
+        { name: '/$bunfs/root/config.json', contents: Buffer.from(json) },
+        { name: '/$bunfs/root/config', contents: Buffer.from(json) },
+      ],
+      true,
+    );
+
+    assert.deepEqual(
+      manifest.files.map((file) => [file.kind, file.rewrittenReferences]),
+      [
+        ['JSON', 0],
+        ['data', 0],
+      ],
+    );
+    assert.equal(readFileSync(join(outputDir, 'config.json'), 'utf8'), json);
+    assert.equal(readFileSync(join(outputDir, 'config'), 'utf8'), json);
+  });
+});
+
+describe('saying what patching did', () => {
+  // Three ways to arrive at `rewrittenReferences: 0`, told apart only by the
+  // outcome beside it. Separating them by hand is what this field exists to
+  // save: nothing to patch, nothing to patch it in, and patched then reverted.
+  it('tells the three ways of rewriting nothing apart', () => {
+    const { manifest } = extractModules(
+      [
+        { name: '/$bunfs/root/quiet.js', contents: Buffer.from('console.log(1);') },
+        { name: '/$bunfs/root/logo.txt', contents: Buffer.from('"/$bunfs/root/logo.txt"') },
+        { name: '/$bunfs/root/keyed.js', contents: Buffer.from('var m={"/$bunfs/root/a.js":1};') },
+      ],
+      true,
+    );
+
+    assert.deepEqual(
+      manifest.files.map((file) => [
+        file.path,
+        file.pathPatching,
+        file.rewrittenReferences,
+        file.skippedReferences,
+      ]),
+      [
+        ['quiet.js', 'applied', 0, 0],
+        ['logo.txt', 'not-applicable', 0, 0],
+        ['keyed.js', 'reverted', 0, 1],
+      ],
+    );
+  });
+
+  it('counts what a file did have patched', () => {
+    const { manifest } = extract(true);
+    const record = manifest.files[0];
+    assert.equal(record?.pathPatching, 'applied');
+    assert.equal(record.rewrittenReferences, 1);
+    assert.equal(record.skippedReferences, 0);
+  });
+
+  // With patching off every file reads `not-applicable`, exactly as a file
+  // holding no JavaScript does. Only the manifest's own options separate them.
+  it('records the options it was produced under', () => {
+    const patched = extract(true);
+    assert.deepEqual(patched.manifest.options, { patchPaths: true, includeBytecode: false });
+
+    const asPacked = extract(false);
+    assert.deepEqual(asPacked.manifest.options, { patchPaths: false, includeBytecode: false });
+    assert.deepEqual(
+      asPacked.manifest.files.map((file) => file.pathPatching),
+      ['not-applicable', 'not-applicable'],
+    );
   });
 });
 

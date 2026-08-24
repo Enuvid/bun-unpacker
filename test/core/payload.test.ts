@@ -169,6 +169,9 @@ describe('extraction', () => {
       payload.files.map((file) =>
         writeFile(reader, file, { outputDir: directory, includeBytecode: true }),
       ),
+      // `writeFile` is called directly here, so nothing was ever marked for
+      // patching, which is what these options have to say.
+      { patchPaths: false, includeBytecode: true },
     );
   }
 

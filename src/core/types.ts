@@ -124,6 +124,17 @@ export interface ExtractedRegion extends Region {
   writtenTo: string | null;
 }
 
+/**
+ * What became of path patching for one file, which `rewrittenReferences` alone
+ * cannot say: a count of zero is equally a file with nothing to patch, a file
+ * patching does not apply to, and a file whose patch was reverted.
+ *
+ * `not-applicable` covers a file that holds no JavaScript and, when patching
+ * was turned off, every file in the run. The manifest's `options` tells those
+ * two apart.
+ */
+export type PathPatching = 'applied' | 'not-applicable' | 'reverted';
+
 export interface ExtractedFile {
   name: string;
   /** Path relative to the output directory. */
@@ -139,6 +150,13 @@ export interface ExtractedFile {
   sha256Packed: string | null;
   /** Virtual filesystem references turned into `__dirname` expressions. */
   rewrittenReferences: number;
+  /** Which of the outcomes above left `rewrittenReferences` where it is. */
+  pathPatching: PathPatching;
+  /**
+   * References the substitution could not place safely. Non-zero means the
+   * file was written exactly as packed, whatever had been rewritten first.
+   */
+  skippedReferences: number;
   writtenTo: string | null;
   sourcemap: ExtractedRegion | null;
   bytecode: ExtractedRegion | null;
@@ -155,10 +173,23 @@ export interface ManifestBinary {
   slice: { start: number; size: number } | null;
 }
 
+/**
+ * The options a manifest was produced under, without which its own numbers are
+ * ambiguous: every file reads as `not-applicable` whether it holds no
+ * JavaScript or patching was never asked for.
+ */
+export interface ManifestOptions {
+  /** Whether packed references were pointed at the extracted files. */
+  patchPaths: boolean;
+  /** Whether the JSC bytecode cache was dumped alongside the sources. */
+  includeBytecode: boolean;
+}
+
 export interface Manifest {
   tool: string;
   toolVersion: string;
   binary: ManifestBinary;
+  options: ManifestOptions;
   payload: PayloadLayout & {
     moduleEntrySize: number;
     fileCount: number;

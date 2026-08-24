@@ -1,5 +1,10 @@
 export { BinaryReader } from './core/binary-reader.js';
-export { ContainerError, describeContents, inspectContainer } from './core/container.js';
+export {
+  ContainerError,
+  describeContents,
+  inspectContainer,
+  isJavaScript,
+} from './core/container.js';
 export { PayloadNotFoundError, PayloadParseError, toRelativePath } from './core/payload.js';
 export { BYTECODE_DIRECTORY, MANIFEST_FILE_NAME, readSlice } from './core/read-slice.js';
 export { processFile } from './core/process-slice.js';
@@ -17,6 +22,8 @@ export type {
   ImageSlice,
   Manifest,
   ManifestBinary,
+  ManifestOptions,
+  PathPatching,
   Payload,
   PayloadFile,
   PayloadLayout,
