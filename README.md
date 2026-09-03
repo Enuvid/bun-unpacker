@@ -19,44 +19,53 @@ executable works the same way. See what is inside:
 ```console
 $ npx bun-unpacker $(which claude) --list
 
-claude  262.3 MB  (/home/you/.local/bin/claude)
-ELF · x86-64 · payload 179.9 MB at 0x5251008 · 8 files · 52-byte entries
+claude  206.6 MB  (/home/you/.local/bin/claude)
+ELF · x86-64 · payload 123.3 MB at 0x533f008 · 1819 files · 52-byte entries · trailer at 0xce95fd5
 
-  path                             size  kind                           bytecode
-  ---------------------------  --------  -----------------------------  --------
-  src/entrypoints/cli.js        20.6 MB  JS (bun cjs, bytecode-backed)  153.1 MB
-  image-processor.js            2.12 KB  JS (bun cjs, bytecode-backed)  -
-  audio-capture.js              2.12 KB  JS (bun cjs, bytecode-backed)  -
-  image-processor.node          1.40 MB  ELF x86-64                     -
-  chart.umd.min.js             203.6 KB  JavaScript                     -
-  hljsBundle.generated.min.js  962.4 KB  JavaScript                     -
-  mermaid.min.js                3.16 MB  JavaScript                     -
-  audio-capture.node           480.6 KB  ELF x86-64                     -
+  path                                                        size  kind        bytecode
+  ------------------------------------------------------  --------  ----------  --------
+  chunk-56nvyfje.js                                        1.13 KB  JS (bun)    1.84 KB
+  chunk-97tbrkcc.js                                        1.03 KB  JS (bun)    2.04 KB
+  chunk-egazc1xn.js                                        2.61 KB  JS (bun)    5.14 KB
+  chunk-qdy5nfrc.js                                        1.11 KB  JS (bun)    616 B
+  chunk-qjp61mp4.js                                        2.43 KB  JS (bun)    1.87 KB
+  cli                                                      19.2 KB  JS (bun)    63.9 KB
+  ...
+  src/plugins/functionHooks/hooks-worker/hooks-worker.js   5.06 KB  JS (bun)    18.2 KB
+  ...
+  image-processor.node                                     1.40 MB  ELF x86-64  -
+  ...
+  mermaid.min.js                                          767.4 KB  JavaScript  -
+  ...
+  template-eg8004mh.md                                     4.00 KB  markdown    -
 
-  total extracted: 26.8 MB
+  total extracted: 37.1 MB
+  entry point: cli
+  72.4 MB of JSC bytecode skipped (pass --bytecode to dump it)
+
+  --list: nothing written
 ```
 
-Extract:
+The table runs to 1819 rows and is cut here. Extract:
 
 ```sh
 npx bun-unpacker $(which claude)                       # extract to ./out
 npx bun-unpacker $(which claude) -o claude-unpacked    # explicit target
 ```
 
-Run unpacked JS:
+Run the unpacked JS. The file to run is the one the report names as
+`entry point`, and the manifest records it as `entrypoint`, so the command
+can read it from there rather than know it:
 
 ```console
-$ bun ./claude-unpacked/src/entrypoints/cli.js --version
-2.1.220 (Claude Code)
+$ bun "claude-unpacked/$(bun -p 'require("./claude-unpacked/__unpack_manifest.json").entrypoint')" --version
+2.1.259 (Claude Code)
 ```
+
+Here that is `bun claude-unpacked/cli --version`.
 
 Paths inside JS files are patched during extraction, so the assets can load.
 Pass `--path-patching false` to get every file exactly as packed.
-
-The file to run is printed as `entry point` and recorded as `entrypoint` in
-the manifest. A bundle split into chunks does not keep it first: Claude Code
-2.1.259 packs 1835 files and its entry point, stored as a bare `cli`, sits
-sixth.
 
 The JavaScript is a minified bundle, so what you get is what was shipped rather
 than anything comfortable to read. It also stays under the license of the
