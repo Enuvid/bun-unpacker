@@ -6,7 +6,12 @@ import { after, describe, it } from 'node:test';
 import { BinaryReader } from '../../src/core/binary-reader.js';
 import { inspectContainer } from '../../src/core/container.js';
 import { MANIFEST_FILE_NAME, readSlice } from '../../src/core/read-slice.js';
-import { buildManifest, writeFile, writeManifest } from '../../src/core/write-slice-fs.js';
+import {
+  buildManifest,
+  describeFile,
+  writeFile,
+  writeManifest,
+} from '../../src/core/write-slice-fs.js';
 import {
   PAYLOAD_TRAILER,
   PayloadNotFoundError,
@@ -117,6 +122,14 @@ describe('payload parsing', () => {
     assert.equal(readModuleTable(reader, layout).entrySize, 40);
   });
 
+  it('reads which module the packer starts with', () => {
+    const synthetic = buildSyntheticExecutable(SAMPLE_MODULES, { entryPointId: 2 });
+    using reader = open(synthetic.bytes);
+    const slice = wholeFile(reader);
+    const layout = readPayloadLayout(reader, slice, findPayloadTrailer(reader, slice));
+    assert.equal(layout.entryPointId, 2);
+  });
+
   it('keeps an empty module instead of rejecting the whole table', () => {
     const synthetic = buildSyntheticExecutable([
       { name: '/$bunfs/root/empty.txt', contents: Buffer.alloc(0) },
@@ -191,6 +204,27 @@ describe('extraction', () => {
       readFileSync(join(outputDir, '_bytecode', 'src/entrypoints/cli.js.jsc')),
       SAMPLE_MODULES[0]?.bytecode,
     );
+  });
+
+  // `files[0]` used to be a fair guess at the entry point. A bundle split into
+  // chunks stores them in the order the bundler emitted them, and Claude Code
+  // 2.1.259 keeps its entry point sixth.
+  it('names the entry point in the manifest wherever it sits in the table', () => {
+    const entrypointOf = (entryPointId: number): string | null => {
+      using reader = open(buildSyntheticExecutable(SAMPLE_MODULES, { entryPointId }).bytes);
+      const container = inspectContainer(reader);
+      const slice = container.slices[0];
+      assert.ok(slice);
+      const payload = readSlice(reader, container, slice);
+      return buildManifest(payload, payload.files.map(describeFile), {
+        patchPaths: false,
+        includeBytecode: false,
+      }).entrypoint;
+    };
+
+    assert.equal(entrypointOf(0), 'src/entrypoints/cli.js');
+    assert.equal(entrypointOf(1), 'assets/chart.min.js');
+    assert.equal(entrypointOf(SAMPLE_MODULES.length), null, 'an index past the table is no entry');
   });
 
   it('records paths relative to the output directory, not the process', () => {

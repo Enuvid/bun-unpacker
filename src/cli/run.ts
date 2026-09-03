@@ -71,6 +71,11 @@ export function reportSlice(
 
   const totalSize = manifest.files.reduce((total, file) => total + file.size, 0);
   streams.out(`\n  total extracted: ${formatBytes(totalSize)}`);
+  // The file to run, which the table cannot say: a bundle split into chunks
+  // stores its entry point wherever the bundler happened to put it.
+  if (manifest.entrypoint !== null) {
+    streams.out(`  entry point: ${manifest.entrypoint}`);
+  }
 
   const bytecodeSize = manifest.files.reduce(
     (total, file) => total + (file.bytecode?.length ?? 0),

@@ -36,11 +36,13 @@ function copyRegion(
   absoluteOffset: number,
   length: number,
   destination: string,
-  rewrite: { fileDirectory: string; outputRoot: string } | null = null,
+  rewrite: PayloadFile['rewrite'] = null,
 ): CopyResult {
   mkdirSync(dirname(destination), { recursive: true });
   const hash = createHash('sha256');
-  const rewriter = rewrite ? createRewriter(rewrite.fileDirectory, rewrite.outputRoot) : null;
+  const rewriter = rewrite
+    ? createRewriter(rewrite.fileDirectory, rewrite.outputRoot, rewrite.format)
+    : null;
   const output = openSync(destination, 'w');
 
   const emit = (bytes: Buffer): void => {
@@ -148,6 +150,7 @@ export function writeFile(
     name: file.name,
     path: file.path,
     kind: file.kind,
+    moduleFormat: file.moduleFormat,
     size: file.size,
     offsetInBlob: file.offsetInBlob,
     offsetInFile: file.offsetInFile,
@@ -183,6 +186,7 @@ export function describeFile(file: PayloadFile): ExtractedFile {
     name: file.name,
     path: file.path,
     kind: file.kind,
+    moduleFormat: file.moduleFormat,
     size: file.size,
     offsetInBlob: file.offsetInBlob,
     offsetInFile: file.offsetInFile,
@@ -220,6 +224,9 @@ export function buildManifest(
       moduleEntrySize: payload.moduleEntrySize,
       fileCount: files.length,
     },
+    // Looked up in the payload rather than in the records, since the records
+    // are whatever the caller chose to pass and need not be one per file.
+    entrypoint: payload.files[payload.layout.entryPointId]?.path ?? null,
     files,
   };
 }

@@ -16,10 +16,10 @@ import type { ImageSlice, ModuleEntry, ModuleTable, PayloadLayout, Region } from
 export const PAYLOAD_TRAILER = Buffer.from('\n---- Bun! ----\n');
 
 /**
- * Candidate sizes of the offsets struct, most likely first. Its first three
+ * Candidate sizes of the offsets struct, most likely first. Its first four
  * fields have been stable across Bun releases:
  *
- *   u64 blobSize, u32 moduleTableOffset, u32 moduleTableLength, ...
+ *   u64 blobSize, u32 moduleTableOffset, u32 moduleTableLength, u32 entryPointId, ...
  *
  * The tail varies by version and is preserved verbatim in the manifest.
  */
@@ -27,6 +27,9 @@ const OFFSETS_STRUCT_SIZES = [32, 40, 24, 48, 28, 36, 20, 16];
 
 /** Candidate module table strides, most likely first. */
 const MODULE_ENTRY_SIZES = [52, 48, 44, 40, 36, 32, 56, 60, 64, 28, 24];
+
+/** Where the entry point's index sits in the offsets struct. */
+const STRUCT_ENTRY_POINT_ID = 16;
 
 /** Field offsets within one module table entry. */
 const ENTRY_NAME = 0;
@@ -155,6 +158,9 @@ export function readPayloadLayout(
       blobSize,
       moduleTableOffsetInBlob,
       moduleTableLength,
+      // Zero when the struct stops short of the field, which is also what the
+      // first versions of the packer stored: the entry point came first.
+      entryPointId: readUInt32(struct, STRUCT_ENTRY_POINT_ID),
     };
   }
 

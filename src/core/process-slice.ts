@@ -15,6 +15,11 @@ import type { PayloadFile, ProcessOptions } from './types.js';
  * colon passes the same check and rewriting it would produce a file that no
  * longer parses. What counts as JavaScript is `isJavaScript`'s to say, so the
  * kind reported for a file and the treatment it gets cannot disagree.
+ *
+ * The module format decides the directory expression, and a file whose format
+ * could not be told is treated as CommonJS. That is the format every packed
+ * file used to be assumed to have, so a file with no markers at all is
+ * patched exactly as before.
  */
 export function processFile(file: PayloadFile, options: ProcessOptions): PayloadFile {
   if (!options.patchPaths || !isJavaScript(file.kind, file.path)) {
@@ -22,7 +27,11 @@ export function processFile(file: PayloadFile, options: ProcessOptions): Payload
   }
 
   const outputRoot = resolve(options.outputDir);
-  const rewrite = { fileDirectory: dirname(join(outputRoot, file.path)), outputRoot };
+  const rewrite = {
+    fileDirectory: dirname(join(outputRoot, file.path)),
+    outputRoot,
+    format: file.moduleFormat ?? 'cjs',
+  };
 
   return {
     ...file,
@@ -31,8 +40,12 @@ export function processFile(file: PayloadFile, options: ProcessOptions): Payload
     // it applies the same substitution chunk by chunk on the way out.
     bytes: () =>
       Buffer.from(
-        rewriteReferences(file.bytes().toString('latin1'), rewrite.fileDirectory, outputRoot)
-          .content,
+        rewriteReferences(
+          file.bytes().toString('latin1'),
+          rewrite.fileDirectory,
+          outputRoot,
+          rewrite.format,
+        ).content,
         'latin1',
       ),
   };

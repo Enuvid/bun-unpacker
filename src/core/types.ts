@@ -40,7 +40,19 @@ export interface PayloadLayout {
   blobSize: number;
   moduleTableOffsetInBlob: number;
   moduleTableLength: number;
+  /**
+   * Index into the module table of the module the packer starts with. Read
+   * as stored, so it is only meaningful when it is below the module count.
+   */
+  entryPointId: number;
 }
+
+/**
+ * How a JavaScript file names its own directory, which decides what a packed
+ * path in expression position is rewritten in terms of: `__dirname` exists in
+ * CommonJS and not in an ES module, `import.meta.dirname` the other way round.
+ */
+export type ModuleFormat = 'cjs' | 'esm';
 
 export interface ModuleEntry {
   /** Path as stored by the packer, e.g. `/$bunfs/root/src/entrypoints/cli.js`. */
@@ -73,6 +85,12 @@ export interface PayloadFile {
   /** Where it lands relative to an output directory, collisions resolved. */
   path: string;
   kind: string;
+  /**
+   * For JavaScript, which of the two module formats the file is written in,
+   * read from the packer's marker, the extension, or the syntax at the top.
+   * Null for anything else, and for JavaScript none of those three settles.
+   */
+  moduleFormat: ModuleFormat | null;
   size: number;
   offsetInBlob: number;
   offsetInFile: number;
@@ -83,7 +101,7 @@ export interface PayloadFile {
    * Set by `processFile` when this file's references are to be rewritten. The
    * writer applies it chunk by chunk; `bytes()` applies it on demand.
    */
-  rewrite: { fileDirectory: string; outputRoot: string } | null;
+  rewrite: { fileDirectory: string; outputRoot: string; format: ModuleFormat } | null;
   /** Reads the whole file into memory. */
   bytes: () => Buffer;
   /**
@@ -141,6 +159,8 @@ export interface ExtractedFile {
   path: string;
   /** Human readable content type, e.g. `Mach-O arm64`. */
   kind: string;
+  /** As on `PayloadFile`; it is what chose the directory expression. */
+  moduleFormat: ModuleFormat | null;
   size: number;
   offsetInBlob: number;
   offsetInFile: number;
@@ -148,7 +168,10 @@ export interface ExtractedFile {
   sha256: string | null;
   /** Of the bytes as they were packed, for verifying against the binary. */
   sha256Packed: string | null;
-  /** Virtual filesystem references turned into `__dirname` expressions. */
+  /**
+   * Virtual filesystem references pointed at the extracted files, whether as
+   * relative module specifiers or as expressions on the module's directory.
+   */
   rewrittenReferences: number;
   /** Which of the outcomes above left `rewrittenReferences` where it is. */
   pathPatching: PathPatching;
@@ -194,5 +217,11 @@ export interface Manifest {
     moduleEntrySize: number;
     fileCount: number;
   };
+  /**
+   * The `path` of the file the packer starts with, or null when the packed
+   * index points outside the table. It is not `files[0]`: a bundle split into
+   * chunks stores them in whatever order the bundler emitted them.
+   */
+  entrypoint: string | null;
   files: ExtractedFile[];
 }

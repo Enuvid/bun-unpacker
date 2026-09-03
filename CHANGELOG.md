@@ -8,6 +8,53 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+## [0.12.0]
+
+
+### Fixed
+
+- An ES module had every reference left as packed. The bundle names the chunks
+  it imports in `import` and `export` statements, where the grammar allows a
+  string literal and nothing else, so the substitution that turns a literal
+  into an expression had nowhere to go, counted each one as skipped, and the
+  all-or-nothing rule reverted the file. Claude Code 2.1.259 packs 1835 files,
+  1649 of them chunks importing one another this way, and the extracted bundle
+  failed on its first import with some fifteen hundred warnings above it. A
+  module specifier is now rewritten to a path relative to the file that holds
+  it, which is what a specifier is resolved against anyway. The arguments of
+  `import()` and `require()` go the same way.
+- A path in expression position in an ES module was rewritten in terms of
+  `__dirname`, which an ES module does not have. Bun leaves it undefined
+  there, as Node does, so the three chunks 0.11.0 did patch in that same
+  binary failed with a ReferenceError at runtime. An ES module now gets
+  `import.meta.dirname`. CommonJS keeps `__dirname`, since `import.meta` is a
+  syntax error there.
+
+
+### Added
+
+- `moduleFormat` on each file, in the payload and in the manifest: `cjs`,
+  `esm`, or null. It is read from the packer's marker line, failing that from
+  a `.mjs` or `.cjs` extension, failing that from an import or export near the
+  top of the file. It is what chose the directory expression. A file it cannot
+  place is patched as CommonJS, which is how every file used to be patched.
+- `describeModuleFormat`, the rule above, beside `describeContents`.
+- `entrypoint` in the manifest, and `entryPointId` in its payload layout: the
+  file the packer starts with, which the offsets struct has recorded all
+  along. It is not `files[0]`: Claude Code 2.1.259 keeps its entry point
+  sixth, and anything reading the manifest had to guess it from the names.
+  The report prints it as `entry point`.
+- `createRewriteStream` takes the module format as a third argument, so a
+  caller assembling its own pipe gets the same directory expression as
+  `writeFile`. It defaults to CommonJS, which is what it always produced.
+
+
+### Changed
+
+- `rewrittenReferences` counts specifiers rewritten to relative literals along
+  with literals rewritten to expressions.
+
+
 ## [0.11.0]
 
 
@@ -360,7 +407,8 @@ First release.
   `unpackBinary` and `unpackTargets` for tools that wrap this CLI with their
   own way of finding binaries.
 
-[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/Enuvid/bun-unpacker/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/Enuvid/bun-unpacker/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/Enuvid/bun-unpacker/compare/v0.9.1...v0.10.0

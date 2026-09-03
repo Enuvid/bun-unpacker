@@ -18,6 +18,8 @@ export interface SyntheticOptions {
   /** Both are probed by the parser, so tests need to vary them. */
   entrySize?: number;
   offsetsStructSize?: number;
+  /** Index of the module the packer would start with. Defaults to the first. */
+  entryPointId?: number;
 }
 
 export interface SyntheticExecutable {
@@ -104,6 +106,9 @@ export function buildSyntheticExecutable(
   offsetsStruct.writeBigUInt64LE(BigInt(blob.length), 0);
   offsetsStruct.writeUInt32LE(contentRegion.length, 8);
   offsetsStruct.writeUInt32LE(table.length, 12);
+  if (offsetsStructSize >= 20) {
+    offsetsStruct.writeUInt32LE(options.entryPointId ?? 0, 16);
+  }
 
   const bytes = Buffer.concat([prefix, blob, offsetsStruct, PAYLOAD_TRAILER, suffix]);
   return {

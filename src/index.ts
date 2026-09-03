@@ -2,6 +2,7 @@ export { BinaryReader } from './core/binary-reader.js';
 export {
   ContainerError,
   describeContents,
+  describeModuleFormat,
   inspectContainer,
   isJavaScript,
 } from './core/container.js';
@@ -23,6 +24,7 @@ export type {
   Manifest,
   ManifestBinary,
   ManifestOptions,
+  ModuleFormat,
   PathPatching,
   Payload,
   PayloadFile,

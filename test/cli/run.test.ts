@@ -79,6 +79,17 @@ describe('cli', () => {
     assert.match(result.out, /2 files/);
   });
 
+  it('says which file to run', () => {
+    const outputDir = join(workspace, 'entry-out');
+    const result = run(binaryPath, '--out', outputDir);
+
+    assert.match(result.out, /entry point: cli\.js/);
+    const manifest = JSON.parse(
+      readFileSync(join(outputDir, MANIFEST_FILE_NAME), 'utf8'),
+    ) as Manifest;
+    assert.equal(manifest.entrypoint, 'cli.js');
+  });
+
   it('writes nothing under --list', () => {
     const outputDir = join(workspace, 'listed');
     const result = run(binaryPath, '--list', '--out', outputDir);

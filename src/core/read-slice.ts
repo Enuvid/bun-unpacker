@@ -1,6 +1,11 @@
 import { extname } from 'node:path';
 import type { BinaryReader } from './binary-reader.js';
-import { HEADER_PROBE_SIZE, describeContents } from './container.js';
+import {
+  HEADER_PROBE_SIZE,
+  describeContents,
+  describeModuleFormat,
+  isJavaScript,
+} from './container.js';
 import {
   findPayloadTrailer,
   readModuleTable,
@@ -118,11 +123,17 @@ export function readSlice(
     );
 
     const path = paths[index] ?? toRelativePath(module.name);
+    const kind = describeContents(module.name, probe);
 
     return {
       name: module.name,
       path,
-      kind: describeContents(module.name, probe),
+      kind,
+      // The format is only asked of JavaScript, since the same rule decides
+      // what gets patched and the format exists to serve the patching.
+      moduleFormat: isJavaScript(kind, module.name)
+        ? describeModuleFormat(module.name, probe)
+        : null,
       size: module.contents.length,
       offsetInBlob: module.contents.offset,
       offsetInFile: contentsOffsetInFile,

@@ -1,5 +1,6 @@
 import { relative, sep } from 'node:path';
 import { toRelativePath } from './payload.js';
+import type { ModuleFormat } from './types.js';
 
 /**
  * The packer records asset paths as absolute paths into a virtual filesystem
@@ -16,6 +17,20 @@ const VIRTUAL_ROOTS = [/^\/\$bunfs\/root\//i, /^B:[\\/]~BUN[\\/]root[\\/]/i];
 const REFERENCE = /"((?:\/\$bunfs\/root\/|B:[\\/]~BUN[\\/]root[\\/])[^"]+)"/gi;
 
 /**
+ * A module specifier: the string after `from` or after a bare `import`, or the
+ * argument of `import()` and `require()`. The first two are grammar rather
+ * than expressions, so nothing but a string literal can stand there. None of
+ * the four needs anything else, either: a specifier is resolved against the
+ * file that holds it, which is exactly the meaning wanted, so these become
+ * relative string literals.
+ *
+ * The keyword has to sit directly before the quote. A `from` or `import` used
+ * as a property name is followed by a colon or a dot, never by a string, so
+ * there is no other way for either to end up here.
+ */
+const SPECIFIER_BEFORE = /(?:\bfrom|\bimport|\bimport\s*\(|\brequire\s*\()\s*$/;
+
+/**
  * Only a literal in expression position can become an expression. The
  * preceding character is not enough to tell: in `{"a":1}` and `[x,"a":1]` a
  * key follows the same `{` or `,` an expression would. What settles it is the
@@ -25,9 +40,22 @@ const EXPRESSION_BEFORE = /[=(,:[?&|+{]\s*$/;
 const KEY_AFTER = /^\s*:/;
 
 /**
- * How much text either side of a match the two checks get to see. Both allow
- * whitespace between the literal and what decides it, so this also caps the
- * indentation they can look across: a literal further than this from its
+ * How a module names its own directory, which is what a path in expression
+ * position is rewritten in terms of. CommonJS has `__dirname` from its
+ * wrapper. An ES module has no wrapper, and Bun, like Node, leaves `__dirname`
+ * undefined there, so a rewritten path would fail with a ReferenceError on
+ * first use. `import.meta.dirname` is the ESM spelling, and inside CommonJS it
+ * is a syntax error, so neither can stand in for the other.
+ */
+const DIRNAME: Readonly<Record<ModuleFormat, string>> = {
+  cjs: '__dirname',
+  esm: 'import.meta.dirname',
+};
+
+/**
+ * How much text either side of a match the checks get to see. All of them
+ * allow whitespace between the literal and what decides it, so this also caps
+ * the indentation they can look across: a literal further than this from its
  * operator is treated as unsafe, and the file is left as packed.
  */
 const CONTEXT = 64;
@@ -41,7 +69,7 @@ const OVERLAP = 2048;
 
 export interface RewriteResult {
   content: string;
-  /** How many references were turned into expressions. */
+  /** How many references were rewritten, as specifiers or as expressions. */
   rewritten: number;
   /** References that could not be rewritten safely; non-zero means nothing was. */
   skipped: number;
@@ -64,39 +92,61 @@ function toAssetPath(reference: string): string | null {
 
 /**
  * Rewrites virtual filesystem references to paths relative to the file doing
- * the reading, as `__dirname` expressions rather than plain strings.
+ * the reading. A module specifier becomes a relative string literal, since
+ * that is what a specifier is resolved against. Any other path becomes an
+ * expression on the module's own directory.
  *
- * A relative string would not do: the bundle tests `isAbsolute` and falls back
- * to a directory from the build machine when the path is relative. An absolute
- * path would work but would pin the output to one location, whereas an
- * expression keeps the extracted directory movable.
+ * A relative string would not do for those: the bundle tests `isAbsolute` and
+ * falls back to a directory from the build machine when the path is relative.
+ * An absolute path would work but would pin the output to one location,
+ * whereas an expression keeps the extracted directory movable.
  */
-function substitute(content: string, fileDirectory: string, outputRoot: string): RewriteResult {
+function substitute(
+  content: string,
+  fileDirectory: string,
+  outputRoot: string,
+  format: ModuleFormat,
+): RewriteResult {
   const toRoot = relative(fileDirectory, outputRoot).split(sep).join('/') || '.';
+  const dirname = DIRNAME[format];
   let rewritten = 0;
   let skipped = 0;
 
   const patched = content.replace(REFERENCE, (match, reference: string, offset: number) => {
     const asset = toAssetPath(reference);
+    if (asset === null) {
+      skipped += 1;
+      return match;
+    }
     const before = content.slice(Math.max(0, offset - CONTEXT), offset);
+    if (SPECIFIER_BEFORE.test(before)) {
+      rewritten += 1;
+      return JSON.stringify(`${toRoot}/${asset}`);
+    }
     const after = content.slice(offset + match.length, offset + match.length + CONTEXT);
-    if (asset === null || !EXPRESSION_BEFORE.test(before) || KEY_AFTER.test(after)) {
+    if (!EXPRESSION_BEFORE.test(before) || KEY_AFTER.test(after)) {
       skipped += 1;
       return match;
     }
     rewritten += 1;
-    return `(__dirname+${JSON.stringify(`/${toRoot}/${asset}`)})`;
+    return `(${dirname}+${JSON.stringify(`/${toRoot}/${asset}`)})`;
   });
 
   return { content: patched, rewritten, skipped };
 }
 
+/**
+ * `format` picks the directory expression, and it is the caller's to say: a
+ * file's references cannot tell, since an ES module whose references are all
+ * in expression position holds no specifier to give it away.
+ */
 export function rewriteReferences(
   content: string,
   fileDirectory: string,
   outputRoot: string,
+  format: ModuleFormat = 'cjs',
 ): RewriteResult {
-  const result = substitute(content, fileDirectory, outputRoot);
+  const result = substitute(content, fileDirectory, outputRoot, format);
 
   // All or nothing: a file with one unrewritable reference would run with a
   // mix of working and broken paths, which is worse than leaving it as packed.
@@ -130,7 +180,7 @@ export interface RewriteStream {
  * The chunk rewriter as a transform, so a file can be patched inside a pipe:
  *
  * ```ts
- * const patch = createRewriteStream(fileDirectory, outputRoot);
+ * const patch = createRewriteStream(fileDirectory, outputRoot, file.moduleFormat ?? 'cjs');
  * await file.stream().pipeThrough(patch.stream).pipeTo(destination);
  * ```
  *
@@ -138,8 +188,12 @@ export interface RewriteStream {
  * own, so a source that hands over a few kilobytes at a time patches the same
  * as one handing over megabytes.
  */
-export function createRewriteStream(fileDirectory: string, outputRoot: string): RewriteStream {
-  const rewriter = createRewriter(fileDirectory, outputRoot);
+export function createRewriteStream(
+  fileDirectory: string,
+  outputRoot: string,
+  format: ModuleFormat = 'cjs',
+): RewriteStream {
+  const rewriter = createRewriter(fileDirectory, outputRoot, format);
 
   const emit = (bytes: Buffer, controller: TransformStreamDefaultController<Uint8Array>): void => {
     if (bytes.length > 0) {
@@ -163,13 +217,17 @@ export function createRewriteStream(fileDirectory: string, outputRoot: string): 
   };
 }
 
-export function createRewriter(fileDirectory: string, outputRoot: string): ChunkRewriter {
+export function createRewriter(
+  fileDirectory: string,
+  outputRoot: string,
+  format: ModuleFormat = 'cjs',
+): ChunkRewriter {
   let tail = '';
   let rewritten = 0;
   let skipped = 0;
 
   const apply = (input: string): string => {
-    const result = substitute(input, fileDirectory, outputRoot);
+    const result = substitute(input, fileDirectory, outputRoot, format);
     rewritten += result.rewritten;
     skipped += result.skipped;
     return result.content;

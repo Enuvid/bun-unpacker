@@ -53,6 +53,11 @@ $ bun ./claude-unpacked/src/entrypoints/cli.js --version
 Paths inside JS files are patched during extraction, so the assets can load.
 Pass `--path-patching false` to get every file exactly as packed.
 
+The file to run is printed as `entry point` and recorded as `entrypoint` in
+the manifest. A bundle split into chunks does not keep it first: Claude Code
+2.1.259 packs 1835 files and its entry point, stored as a bare `cli`, sits
+sixth.
+
 The JavaScript is a minified bundle, so what you get is what was shipped rather
 than anything comfortable to read. It also stays under the license of the
 binary it came from, which for Claude Code means it is not yours to republish.
@@ -97,6 +102,7 @@ A universal binary gets one directory per architecture (`out/arm64/`,
   "name": "/$bunfs/root/src/index.js",
   "path": "src/index.js",
   "kind": "JS (bun cjs, bytecode-backed)",
+  "moduleFormat": "cjs",
   "size": 1929216,
   "offsetInFile": 46859528,
   "sha256": "8f1dded3...",
@@ -114,6 +120,12 @@ matches one written anywhere else.
 bytes as they were packed. They differ only for files whose paths were patched,
 which `rewrittenReferences` counts. So you can always check the output against
 the binary.
+
+`moduleFormat` is `cjs`, `esm`, or null for anything that is not JavaScript.
+It decides how a patched path names the module's own directory, as described
+under Limitations. The manifest's top-level `entrypoint` is the `path` of the
+file the packer starts with, or null if the packed index points outside the
+table.
 
 `pathPatching` says why that count is what it is, which a count of zero cannot:
 
@@ -158,7 +170,8 @@ Bun appends its payload to the end of the executable:
   payload blob          bytecode cache, file contents, sourcemaps,
                         NUL-terminated names
   module table          moduleCount * entrySize
-  offsets struct        u64 blobSize, u32 tableOffset, u32 tableLength, ...
+  offsets struct        u64 blobSize, u32 tableOffset, u32 tableLength,
+                        u32 entryPointId, ...
   "\n---- Bun! ----\n"
   ...native metadata... ELF section headers, Mach-O code signature, ...
 ```
@@ -176,10 +189,14 @@ table entry gives a packed path: `/$bunfs/root/...` on Linux and macOS,
 ## ⚠️ Limitations
 
 Patching is a text substitution in JavaScript source. It finds string literals
-with a packed path and turns them into `__dirname` expressions. It only does
-this when the literal is in expression position, which it checks by looking at
-the characters on each side. This is a heuristic: the tool does not parse the
-JavaScript.
+with a packed path and rewrites them one of two ways. A module specifier, the
+string after `import` or `from` or the argument of `import()` and `require()`,
+becomes a path relative to the file that holds it, which is what a specifier
+is resolved against anyway. Any other literal becomes an expression on the
+module's own directory: `__dirname` in CommonJS, `import.meta.dirname` in an
+ES module. It only does the second when the literal is in expression position,
+which it checks by looking at the characters on each side. This is a
+heuristic: the tool does not parse the JavaScript.
 
 If one path in a file cannot be placed safely, the whole file is written
 exactly as packed. Nothing is half rewritten, so the worst case is a bundle
@@ -195,6 +212,13 @@ packed path of its own, that string is inside the compiled binary, and
 rewriting JavaScript does not touch it. Loading the addon still works, because
 the `require` that loads it is a JavaScript literal. The same goes for any path
 passed to a subprocess.
+
+**Modules of unknown format.** The directory expression depends on whether a
+file is CommonJS or an ES module. The packer's marker line says which for every
+module it compiled, and `.mjs` and `.cjs` say so by definition. A plain `.js`
+file with neither is taken for CommonJS unless an import or export sits within
+its first 512 bytes, so an ES module that opens with a long comment is given
+`__dirname`, which it does not have.
 
 **Files that were never packed.** A compiler leaves some imports out of the
 bundle and expects them from `node_modules` at runtime. Large binaries often
@@ -314,6 +338,19 @@ as `cli` is as much JavaScript as one stored as `cli.js`. The name is still
 consulted as a second opinion, since a couple of the kinds that outrank it rest
 on a two-byte magic number.
 
+### `describeModuleFormat`
+
+```ts
+describeModuleFormat(fileName: string, header: Buffer): ModuleFormat | null;
+```
+
+Whether a JavaScript file is CommonJS or an ES module, from its first bytes:
+`cjs`, `esm`, or null when nothing settles it. The packer's marker line says
+`@bun-cjs` for CommonJS and nothing for an ES module, so it decides outright.
+Without a marker, `.mjs` and `.cjs` decide, and failing those a static import
+or export in the header means ESM. This fills `moduleFormat`, and it is what
+picks the directory expression when a file is patched.
+
 ### `readSlice`
 
 ```ts
@@ -324,6 +361,10 @@ Parses one image and returns its payload: the layout, the module table stride,
 the binary metadata for a manifest, and the files. Writes nothing. Throws
 `PayloadNotFoundError` when there is no packer trailer, and `PayloadParseError`
 when there is a trailer but the structures it points to are not valid.
+
+`layout.entryPointId` is the index of the file the packer starts with, read
+from the offsets struct as stored. `payload.files[payload.layout.entryPointId]`
+is that file, when the index is within the table.
 
 ### `processFile`
 
@@ -371,7 +412,8 @@ Collects records into a manifest, along with the binary and payload they came
 from. It takes whatever the caller gathered, so listing and writing give the
 same shape. `options` are the ones the records were produced under: they are
 not read back off the records because they cannot be, a run with patching off
-being indistinguishable from a payload with no JavaScript in it.
+being indistinguishable from a payload with no JavaScript in it. `entrypoint`
+is looked up in the payload rather than in the records, for the same reason.
 
 ### `writeManifest`
 
@@ -388,9 +430,10 @@ landed on that name: what the binary held is never written over.
 What `readSlice` returns, one per packed file. `name` is the path the packer
 stored, `/$bunfs/root/src/index.js`. `path` is where it lands relative to an
 output directory, collisions already resolved. `size` and `kind` are the byte
-count and the readable type. `offsetInFile` and `rawEntryHex` are for looking
-at the binary itself: where the file sits in it, and the raw bytes of its
-module table entry.
+count and the readable type, and `moduleFormat` is `cjs`, `esm` or null, as
+`describeModuleFormat` answers for JavaScript. `offsetInFile` and `rawEntryHex`
+are for looking at the binary itself: where the file sits in it, and the raw
+bytes of its module table entry.
 
 Contents come from two methods, and the size decides which one you want.
 `bytes()` reads the file into a `Buffer`, which is fine most of the time.
@@ -428,17 +471,22 @@ a region other than the file, or when the stream passes through a transform.
 ### `createRewriteStream`
 
 ```ts
-createRewriteStream(fileDirectory: string, outputRoot: string): RewriteStream;
+createRewriteStream(fileDirectory: string, outputRoot: string, format?: ModuleFormat): RewriteStream;
 ```
 
 Path patching as a `TransformStream`, for callers assembling their own pipe
 rather than going through `writeFile`:
 
 ```ts
-const patch = createRewriteStream(fileDirectory, outputRoot);
+const patch = createRewriteStream(fileDirectory, outputRoot, file.moduleFormat ?? 'cjs');
 await file.stream().pipeThrough(patch.stream).pipeTo(destination);
 console.log(patch.counts()); // { rewritten, skipped }
 ```
+
+`format` picks the directory expression, `__dirname` or `import.meta.dirname`,
+and defaults to `cjs`. It has to be given: a file's references cannot say what
+it is, since an ES module whose references are all in expression position
+holds no specifier to give it away.
 
 The transform holds no opinion about chunk size, keeping a tail of its own, so
 a source handing over a few kilobytes at a time patches the same as one handing

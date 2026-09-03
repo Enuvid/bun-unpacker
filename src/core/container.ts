@@ -1,6 +1,6 @@
 import { extname } from 'node:path';
 import type { BinaryReader } from './binary-reader.js';
-import type { ContainerInfo, ExecutableFormat, ImageSlice } from './types.js';
+import type { ContainerInfo, ExecutableFormat, ImageSlice, ModuleFormat } from './types.js';
 
 const ELF_MACHINES: Readonly<Record<number, string>> = {
   0x03: 'i386',
@@ -300,4 +300,53 @@ export function isJavaScript(kind: string, fileName: string): boolean {
     JAVASCRIPT_KINDS.has(kind) ||
     EXTENSION_KINDS[extname(fileName).toLowerCase()] === KIND_JAVASCRIPT
   );
+}
+
+/**
+ * The marker line the packer writes over a module it compiled itself, and the
+ * flag it adds when that module is CommonJS. Without the flag the module is an
+ * ES module, which is the packer's default.
+ */
+const BUN_MARKER = /^\/\/ @bun(?:\s|$)/;
+const BUN_CJS_FLAG = '@bun-cjs';
+
+const EXTENSION_FORMATS: Readonly<Record<string, ModuleFormat>> = {
+  '.mjs': 'esm',
+  '.cjs': 'cjs',
+};
+
+/**
+ * Syntax only an ES module can hold: a static import or export at the start
+ * of a statement, or `import.meta` anywhere. `import()` is left out, being
+ * legal in both, and so is `require`, which Bun allows in either.
+ */
+const ESM_SYNTAX =
+  /(?:^|[;}\n])\s*(?:import\s*(?:["'{*]|\s[\w$]+\s*(?:,|from\b))|export\s*(?:[{*]|(?:default|const|let|var|function|class|async)\b))|import\s*\.\s*meta\b/;
+
+/**
+ * Which module format a JavaScript file is written in, from its first bytes.
+ *
+ * The packer's marker settles it outright: it says `@bun-cjs` for CommonJS
+ * and nothing for an ES module, and it is written from what the packer
+ * actually emitted. Failing a marker, `.mjs` and `.cjs` are unambiguous by
+ * definition. Failing both, a static import or export near the top says ESM.
+ * Null when none of the three speaks, which the caller reads as CommonJS:
+ * that is where a file with no markers at all was always treated as being.
+ *
+ * The header need only be the first few hundred bytes, and only the marker is
+ * certain to sit there. The syntax check is the weakest of the three because
+ * of it: a module whose first import comes after a long comment is missed.
+ */
+export function describeModuleFormat(fileName: string, header: Buffer): ModuleFormat | null {
+  const text = header.toString('latin1');
+  if (BUN_MARKER.test(text)) {
+    const lineEnd = text.indexOf('\n');
+    const marker = lineEnd === -1 ? text : text.slice(0, lineEnd);
+    return marker.includes(BUN_CJS_FLAG) ? 'cjs' : 'esm';
+  }
+  const byExtension = EXTENSION_FORMATS[extname(fileName).toLowerCase()];
+  if (byExtension !== undefined) {
+    return byExtension;
+  }
+  return ESM_SYNTAX.test(text) ? 'esm' : null;
 }

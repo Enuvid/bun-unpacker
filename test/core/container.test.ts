@@ -6,6 +6,7 @@ import { BinaryReader } from '../../src/core/binary-reader.js';
 import {
   ContainerError,
   describeContents,
+  describeModuleFormat,
   detectArchitecture,
   detectFormat,
   inspectContainer,
@@ -162,6 +163,62 @@ describe('recognising JavaScript', () => {
       isJavaScript(describeContents('bundle.js', Buffer.from('MZa=1')), 'bundle.js'),
       true,
     );
+  });
+});
+
+describe('telling the module formats apart', () => {
+  it('reads the packer marker, which says cjs or says nothing', () => {
+    assert.equal(
+      describeModuleFormat('cli', Buffer.from('// @bun @bytecode @bun-cjs\n(function(){})')),
+      'cjs',
+    );
+    assert.equal(
+      describeModuleFormat('cli', Buffer.from('// @bun @bytecode\nimport{a}from"./x";')),
+      'esm',
+    );
+    assert.equal(describeModuleFormat('chunk.js', Buffer.from('// @bun\nvar a=1;')), 'esm');
+    // The marker describes what the packer emitted, so it outranks the name.
+    assert.equal(describeModuleFormat('x.mjs', Buffer.from('// @bun @bun-cjs\nvar a=1;')), 'cjs');
+    // A marker that merely starts the same way is not the marker.
+    assert.equal(describeModuleFormat('x.js', Buffer.from('// @bundler\nvar a=1;')), null);
+  });
+
+  it('trusts an extension that can only mean one thing', () => {
+    assert.equal(describeModuleFormat('a.mjs', Buffer.from('var a=1;')), 'esm');
+    assert.equal(describeModuleFormat('a.CJS', Buffer.from('import x from "y";')), 'cjs');
+  });
+
+  it('falls back to syntax only an ES module can hold', () => {
+    for (const source of [
+      'import{a}from"./x";',
+      'import "./x";',
+      'import x from "y";',
+      'import x,{y} from "z";',
+      'import*as x from "y";',
+      'var a=1;export{a};',
+      'export default 1;',
+      'export const a=1;',
+      '// header\nexport function f(){}',
+      'var d=import.meta.dirname;',
+    ]) {
+      assert.equal(describeModuleFormat('a.js', Buffer.from(source)), 'esm', source);
+    }
+  });
+
+  it('says nothing about a file that gives nothing away', () => {
+    for (const source of [
+      'module.exports=1;',
+      'exports.a=1;',
+      'var a=import("./x");',
+      'require("./x");',
+      'var o={import:1,from:2,export:3};',
+      // An identifier that merely starts with the keyword.
+      'var a;imports,b=1;',
+      'exports={};',
+      '',
+    ]) {
+      assert.equal(describeModuleFormat('a.js', Buffer.from(source)), null, source);
+    }
   });
 });
 
