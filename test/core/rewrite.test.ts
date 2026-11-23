@@ -242,6 +242,56 @@ describe('rewriteReferences', () => {
   });
 });
 
+describe('a name built at runtime in a template literal', () => {
+  // The shape Claude Code 2.1.330 uses to read a native addon into memory.
+  const source = 'function load(e){return readFileSync(`/$bunfs/root/${e}`)}';
+
+  it('rewrites the root and keeps the interpolation', () => {
+    const result = rewriteReferences(source, '/out/chunks', '/out', 'esm');
+    assert.equal(
+      result.content,
+      'function load(e){return readFileSync(`${import.meta.dirname}/../${e}`)}',
+    );
+    assert.equal(result.rewritten, 1);
+    assert.equal(result.skipped, 0);
+  });
+
+  it('uses __dirname in CommonJS', () => {
+    const result = rewriteReferences(source, '/out', '/out', 'cjs');
+    assert.match(result.content, /`\$\{__dirname\}\/\.\/\$\{e\}`/);
+  });
+
+  it('understands the Windows root in a template too', () => {
+    const result = rewriteReferences('f(`B:/~BUN/root/${e}`)', '/out', '/out');
+    assert.equal(result.content, 'f(`${__dirname}/./${e}`)');
+  });
+
+  it('patches alongside quoted references in the same file', () => {
+    const mixed = `var a=("/$bunfs/root/a.node");${source}`;
+    const result = rewriteReferences(mixed, '/out', '/out');
+    assert.equal(result.rewritten, 2);
+    assert.doesNotMatch(result.content, /\$bunfs/);
+  });
+
+  it('matches the whole-file result wherever the chunk boundary falls', () => {
+    const chunkSize = 4096;
+    for (let padding = 1960; padding <= 2120; padding += 1) {
+      const padded = `${'x'.repeat(padding)}${source};${'y'.repeat(6000)}`;
+      const rewriter = createRewriter('/out', '/out', 'esm');
+      const parts: Buffer[] = [];
+      for (let offset = 0; offset < padded.length; offset += chunkSize) {
+        parts.push(rewriter.push(Buffer.from(padded.slice(offset, offset + chunkSize), 'latin1')));
+      }
+      parts.push(rewriter.end());
+
+      const chunked = Buffer.concat(parts).toString('latin1');
+      const whole = rewriteReferences(padded, '/out', '/out', 'esm');
+      assert.equal(chunked, whole.content, `padding ${String(padding)}`);
+      assert.ok(!chunked.includes('$bunfs'), `padding ${String(padding)} left a packed path`);
+    }
+  });
+});
+
 describe('rewriting chunk by chunk', () => {
   function run(source: string, chunkSize: number): { output: string; rewritten: number } {
     const rewriter = createRewriter('/out/src', '/out');

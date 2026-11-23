@@ -14,7 +14,19 @@ const VIRTUAL_ROOTS = [/^\/\$bunfs\/root\//i, /^B:[\\/]~BUN[\\/]root[\\/]/i];
  * the roots reject would count as skipped and, by the all-or-nothing rule,
  * leave a whole file unpatched.
  */
-const REFERENCE = /"((?:\/\$bunfs\/root\/|B:[\\/]~BUN[\\/]root[\\/])[^"]+)"/gi;
+const ROOT_SOURCE = String.raw`(?:\/\$bunfs\/root\/|B:[\\/]~BUN[\\/]root[\\/])`;
+
+/**
+ * Two shapes. A double-quoted literal names one file. A template literal
+ * whose text opens with the root builds the name at runtime, as in
+ * `` readFileSync(`/$bunfs/root/${name}`) ``, which Claude Code started doing
+ * in 2.1.33x to load a native addon from an anonymous file. Only the root of
+ * the second can be rewritten, so it is matched alone; the backtick has to sit
+ * directly before it, which is what makes it the start of the template text.
+ * Missing that shape was silent: the reference neither matched nor counted as
+ * skipped, and survived into the output unpatched.
+ */
+const REFERENCE = new RegExp(String.raw`"(${ROOT_SOURCE}[^"]+)"|\`(${ROOT_SOURCE})`, 'gi');
 
 /**
  * A module specifier: the string after `from` or after a bare `import`, or the
@@ -112,7 +124,21 @@ function substitute(
   let rewritten = 0;
   let skipped = 0;
 
-  const patched = content.replace(REFERENCE, (match, reference: string, offset: number) => {
+  const replace = (
+    match: string,
+    reference: string | undefined,
+    templateRoot: string | undefined,
+    offset: number,
+  ): string => {
+    if (templateRoot !== undefined) {
+      // Template text is never a key or a static specifier, so it needs none
+      // of the checks below: an interpolation is valid wherever it stands.
+      rewritten += 1;
+      return `\`\${${dirname}}/${toRoot}/`;
+    }
+    if (reference === undefined) {
+      return match;
+    }
     const asset = toAssetPath(reference);
     if (asset === null) {
       skipped += 1;
@@ -130,9 +156,9 @@ function substitute(
     }
     rewritten += 1;
     return `(${dirname}+${JSON.stringify(`/${toRoot}/${asset}`)})`;
-  });
+  };
 
-  return { content: patched, rewritten, skipped };
+  return { content: content.replace(REFERENCE, replace), rewritten, skipped };
 }
 
 /**
